@@ -1,69 +1,117 @@
-import Image from "next/image";
+import { Suspense } from "react";
+import Link from "next/link";
+import { getProducts } from "@/lib/api";
+import ProductGrid from "./components/ProductGrid";
+
+export const metadata = {
+  title: "RevoShop — Modern Tech Store",
+  description:
+    "Discover audio gear, computing accessories, wearables, and smart lifestyle gadgets at RevoShop.",
+};
+
+const VALUE_PILLARS = [
+  { icon: "🚚", title: "Free Express Shipping", body: "On every order, no minimum." },
+  { icon: "↩️", title: "30-Day Trial", body: "Not for you? Send it back, free." },
+  { icon: "🛟", title: "24/7 Tech Support", body: "Real humans, any time of day." },
+];
+
+async function FeaturedProducts() {
+  const products = await getProducts();
+  const featured = products.slice(0, 5);
+
+  return (
+    <ProductGrid
+      products={featured}
+      featuredCount={featured.length}
+      emptyMessage="No featured products available right now."
+    />
+  );
+}
+
+function FeaturedSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-80 animate-pulse rounded-2xl border border-[var(--color-hairline)] bg-white"
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="flex flex-col gap-12">
+      {/* Hero banner */}
+      <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-[var(--color-brand)] to-indigo-700 px-6 py-14 text-white sm:px-12 sm:py-20">
+        <span className="inline-block rounded-full bg-[var(--color-accent)] px-3 py-1 text-xs font-bold text-slate-900">
+          New drop · Tech season 2026
+        </span>
+        <h1 className="mt-4 max-w-2xl text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">
+          Precision gear for the way you work, play, and move.
+        </h1>
+        <p className="mt-4 max-w-xl text-base text-blue-100 sm:text-lg">
+          RevoShop brings together audio, computing, wearables, and smart
+          living — with lightning-fast discovery and crystal-clear stock info.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link
+            href="/products"
+            className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-[var(--color-brand)] transition-transform hover:scale-[1.02]"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Shop all products
+          </Link>
+          <Link
+            href="/categories"
+            className="rounded-full border border-white/40 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
           >
-            Documentation
-          </a>
+            Browse categories
+          </Link>
         </div>
-      </main>
+      </section>
+
+      {/* Value pillars */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {VALUE_PILLARS.map((pillar) => (
+          <div
+            key={pillar.title}
+            className="flex items-start gap-3 rounded-2xl border border-[var(--color-hairline)] bg-white p-5"
+          >
+            <span className="text-2xl" aria-hidden>
+              {pillar.icon}
+            </span>
+            <div>
+              <h3 className="font-semibold text-slate-900">{pillar.title}</h3>
+              <p className="text-sm text-slate-500">{pillar.body}</p>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* Featured gear */}
+      <section>
+        <div className="mb-5 flex items-end justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+              Featured gear
+            </h2>
+            <p className="text-sm text-slate-500">
+              Hand-picked from the RevoShop catalogue.
+            </p>
+          </div>
+          <Link
+            href="/products"
+            className="text-sm font-semibold text-[var(--color-brand)] hover:underline"
+          >
+            View all →
+          </Link>
+        </div>
+        <Suspense fallback={<FeaturedSkeleton />}>
+          <FeaturedProducts />
+        </Suspense>
+      </section>
     </div>
   );
 }
