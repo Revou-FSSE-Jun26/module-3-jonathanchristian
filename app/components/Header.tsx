@@ -13,6 +13,11 @@ const NAV_LINKS = [
   { href: "/orders", label: "Orders" },
 ] as const;
 
+const AUTH_LINKS = [
+  { href: "/register", label: "Register" },
+  { href: "/login", label: "Login" },
+] as const;
+
 export default function Header() {
   const pathname = usePathname();
   const { itemCount } = useCart();
@@ -54,25 +59,70 @@ export default function Header() {
             })}
           </nav>
 
-          <button
-            type="button"
-            onClick={() => setCartOpen(true)}
-            className="relative flex items-center gap-2 rounded-full border border-[var(--color-hairline)] px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-[var(--color-canvas-alt)]"
-            aria-label={`Open cart, ${itemCount} items`}
-          >
-            <span aria-hidden>🛒</span>
-            <span className="hidden sm:inline">Cart</span>
-            {itemCount > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-accent)] px-1 text-xs font-bold text-slate-900">
-                {itemCount}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-1 sm:flex">
+              {AUTH_LINKS.map((link) => {
+                const active = isActive(link.href);
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    aria-current={active ? "page" : undefined}
+                    className={
+                      active
+                        ? "rounded-full bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white"
+                        : "rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-[var(--color-canvas-alt)]"
+                    }
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className="relative flex items-center gap-2 rounded-full border border-[var(--color-hairline)] px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-[var(--color-canvas-alt)]"
+              aria-label={`Open cart, ${itemCount} items`}
+            >
+              <span aria-hidden>🛒</span>
+              <span className="hidden sm:inline">Cart</span>
+              {itemCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-accent)] px-1 text-xs font-bold text-slate-900">
+                  {itemCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Mobile nav row */}
         <nav className="mx-auto mt-2 flex max-w-6xl items-center gap-1 overflow-x-auto rounded-2xl border border-[var(--color-hairline)] bg-white/80 px-2 py-2 shadow-md backdrop-blur-md sm:hidden">
           {NAV_LINKS.map((link) => {
+            const active = isActive(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={active ? "page" : undefined}
+                className={
+                  active
+                    ? "whitespace-nowrap rounded-full bg-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-white"
+                    : "whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium text-slate-600"
+                }
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+
+          <span
+            aria-hidden
+            className="mx-1 h-5 w-px shrink-0 bg-[var(--color-hairline)]"
+          />
+
+          {AUTH_LINKS.map((link) => {
             const active = isActive(link.href);
             return (
               <Link
