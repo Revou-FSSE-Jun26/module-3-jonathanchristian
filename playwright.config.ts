@@ -1,15 +1,57 @@
 import { defineConfig, devices } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
 
 /**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
+ * Load environment variables from `.env` into process.env for the Playwright
+ * runner (the config file runs outside Next.js, so Next's own .env loading does
+ * not apply here). We use a tiny built-in parser to avoid adding a `dotenv`
+ * dependency. Existing process.env values are never overwritten.
+ *
+ * Relevant vars (see .env.example / test-plan.md):
+ *   NEXT_PUBLIC_API_BASE_URL  - the real Flask API base URL
+ *   PW_ADMIN_EMAIL / PW_ADMIN_PASSWORD - a known admin account
+ *   PW_PAYMENTS_MODE          - "stub" (default) or "real"
+ *   PW_BASE_URL               - override the app URL (default http://localhost:3000)
  */
-// import dotenv from 'dotenv';
-// import path from 'path';
-// dotenv.config({ path: path.resolve(__dirname, '.env') });
+function loadEnvFile(file: string): void {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(file, 'utf-8');
+  } catch {
+    return; // No .env file — rely on the real environment.
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    // Strip surrounding quotes if present.
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadEnvFile(path.resolve(__dirname, '.env'));
+
+const BASE_URL = process.env.PW_BASE_URL ?? 'http://localhost:3000';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
+ *
+ * These E2E tests run against the REAL Flask backend (NEXT_PUBLIC_API_BASE_URL)
+ * plus the Next.js dev server on :3000. The only stubbed boundary is the
+ * Midtrans redirect (see tests/helpers/payments.ts). Prerequisites and env vars
+ * are documented in test-plan.md and .env.example.
  */
 export default defineConfig({
   testDir: './tests',
@@ -25,8 +67,8 @@ export default defineConfig({
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('')`. */
-    // baseURL: 'http://localhost:3000',
+    /* Base URL to use in actions like `await page.goto('/products')`. */
+    baseURL: BASE_URL,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -48,32 +90,14 @@ export default defineConfig({
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
     },
-
-    /* Test against mobile viewports. */
-    // {
-    //   name: 'Mobile Chrome',
-    //   use: { ...devices['Pixel 5'] },
-    // },
-    // {
-    //   name: 'Mobile Safari',
-    //   use: { ...devices['iPhone 12'] },
-    // },
-
-    /* Test against branded browsers. */
-    // {
-    //   name: 'Microsoft Edge',
-    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
-    // {
-    //   name: 'Google Chrome',
-    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    // },
   ],
 
-  /* Run your local dev server before starting the tests */
-  // webServer: {
-  //   command: 'npm run start',
-  //   url: 'http://localhost:3000',
-  //   reuseExistingServer: !process.env.CI,
-  // },
+  /* Start the Next.js dev server before the tests. The Flask API must be
+   * started separately and reachable at NEXT_PUBLIC_API_BASE_URL. */
+  webServer: {
+    command: 'npm run dev',
+    url: BASE_URL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });

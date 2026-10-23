@@ -59,7 +59,7 @@ Authentication is JWT-based. The access and refresh tokens returned by the API a
 - **next/navigation** — `useRouter`, `usePathname`, `useSearchParams` for navigation, active links, and query-param-driven search; `router.replace()` for non-returnable auth redirects.
 - **localStorage** — session persistence (JWT access/refresh tokens + user name/role) and cart persistence.
 - **`NEXT_PUBLIC_API_BASE_URL`** — the Flask API base URL, read from the environment and never hardcoded.
-- **Playwright** — end-to-end test suite (planned; see [Testing](#testing)).
+- **Playwright** — end-to-end test suite covering the auth, browsing, and admin journeys (see [Testing](#testing)).
 
 ## Project Structure
 
@@ -121,7 +121,15 @@ Authentication is JWT-based. The access and refresh tokens returned by the API a
 │   ├── toast.ts                   # Shared toast helpers
 │   ├── format.ts                  # Price, stock, date, and order-status formatting
 │   └── types.ts                   # Shared domain types
+├── tests/                         # Playwright end-to-end suite
+│   ├── auth.spec.ts               # Registration / login / logout
+│   ├── browsing.spec.ts           # Products → cart → checkout journey
+│   ├── admin-products.spec.ts     # Admin product CRUD (+ 409 edge)
+│   ├── admin-categories.spec.ts   # Admin category CRUD (+ 409 edge)
+│   ├── admin-orders.spec.ts       # Admin order status updates
+│   └── helpers/                   # Seeding client, session/auth, data, payments
 ├── public/                        # Static assets
+├── playwright.config.ts           # Playwright config (baseURL + webServer)
 ├── .env.example                   # Placeholder environment variables
 └── next.config.ts                 # Next.js configuration
 ```
@@ -173,22 +181,79 @@ npm run lint    # Run ESLint
 
 ## Testing
 
-A Playwright end-to-end test suite is planned to cover:
+A Playwright end-to-end suite lives in `tests/` and runs against the **real Flask
+backend**, driving the app through the browser. It covers four journeys:
 
-- the registration and login flow,
-- the full browsing journey (products list → add to cart → checkout), and
-- the admin CRUD dashboard journey (create, edit, delete).
+- **Registration / login / logout** — happy paths, client-side validation, the
+  duplicate-email `409`, role-based redirects (admin → `/dashboard`, customer →
+  `/`), and a failed-login error.
+- **Full browsing journey** — products list with live search, add to cart, cart
+  review with quantity changes, and checkout (real `POST /orders/` → payment →
+  redirect), plus the payment-failure fallback.
+- **Admin product & category CRUD** — create, create-validation, edit, delete,
+  and the `409` "can't delete" edge cases (a product with an order; a category
+  with a product).
+- **Admin order status updates** — advancing an order through the allowed
+  forward-only transitions (status changes only; no create/edit/delete of
+  orders here).
 
-Once the suite is added, it will run with:
+### How the backend is handled
 
-```bash
-npx playwright test          # Run the full suite headless
-npx playwright test --ui     # Run interactively in the Playwright UI
+Tests hit the real API for everything **except the Midtrans payment gateway**.
+The browser is never allowed to navigate to the external Midtrans Snap page — a
+Playwright route interception captures that redirect instead. The payment
+boundary is controlled by `PW_PAYMENTS_MODE`:
+
+- `stub` (default) — intercepts `POST /payments` and returns a canned
+  `redirect_url`. Use this until a Midtrans return URL is configured.
+- `real` — calls the backend's `POST /payments` for real; the outbound Midtrans
+  navigation is still intercepted.
+
+### Prerequisites
+
+- The Flask API running and reachable at `NEXT_PUBLIC_API_BASE_URL`.
+- A dedicated test database (tests create data with unique names and rely on the
+  API's soft-deletion, so no cleanup step is required).
+- A known **admin** account (registration only ever creates customers). The
+  admin journeys read credentials from the environment.
+
+Set the following in `.env` (documented in `.env.example`; `.env` is
+git-ignored):
+
+```
+PW_ADMIN_EMAIL=admin@example.com
+PW_ADMIN_PASSWORD=your-admin-password
+PW_PAYMENTS_MODE=stub
 ```
 
-The dev server (or a production build served with `npm run start`) and the Flask API should both be running before executing the tests, against the base URL configured in `NEXT_PUBLIC_API_BASE_URL`.
+The Playwright config auto-starts the Next.js dev server on port 3000; you only
+need to start the Flask API yourself.
 
-> Note: the test suite is not included in this checkpoint yet. This section documents the intended setup and commands.
+### Running the tests
+
+```bash
+npm run test:e2e             # Run the full suite headless
+npm run test:e2e:ui          # Run interactively in the Playwright UI
+```
+
+The first run needs the Playwright browsers installed:
+
+```bash
+npx playwright install
+```
+
+### Browser support
+
+The suite is configured for Chromium, Firefox, and WebKit and passes fully on
+**Chromium and Firefox**. On some Windows hosts WebKit fails to launch with a
+`STATUS_DLL_NOT_FOUND` / missing `icudt77.dll` error; this is a host-level
+dependency issue, not a test problem. If you hit it, install the latest
+**Microsoft Visual C++ Redistributable (x64)** and re-run
+`npx playwright install webkit`, or run just the working browsers:
+
+```bash
+npx playwright test --project=chromium --project=firefox
+```
 
 ## Screenshots
 
