@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCart } from "@/lib/cart-context";
 import { formatPrice } from "@/lib/format";
 import ProductImage from "./ProductImage";
@@ -115,13 +116,23 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
               {formatPrice(total)}
             </span>
           </div>
-          <button
-            type="button"
-            disabled={items.length === 0}
-            className="w-full rounded-full bg-[var(--color-brand)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-brand-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Checkout
-          </button>
+          {items.length === 0 ? (
+            <button
+              type="button"
+              disabled
+              className="w-full cursor-not-allowed rounded-full bg-[var(--color-brand)] px-4 py-3 text-sm font-semibold text-white opacity-40"
+            >
+              View cart
+            </button>
+          ) : (
+            <Link
+              href="/cart"
+              onClick={onClose}
+              className="block w-full rounded-full bg-[var(--color-brand)] px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-[var(--color-brand-hover)]"
+            >
+              View cart
+            </Link>
+          )}
           {items.length > 0 && (
             <button
               type="button"
