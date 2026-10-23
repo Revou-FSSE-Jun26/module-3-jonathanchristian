@@ -242,10 +242,19 @@ The first run needs the Playwright browsers installed:
 npx playwright install
 ```
 
+### Results
+
+The suite was last run locally against the Flask API with **47 of 48 tests
+passing**. The single failure was a Firefox-only flake: the exact same test
+case passed on Chromium, so it reflects a browser/host quirk rather than a
+defect in the app. A representative run is captured in
+`screenshots/Screenshot - Playwright Tests.png`.
+
 ### Browser support
 
-The suite is configured for Chromium, Firefox, and WebKit and passes fully on
-**Chromium and Firefox**. On some Windows hosts WebKit fails to launch with a
+The suite is configured for Chromium, Firefox, and WebKit. It passes on
+**Chromium**; on **Firefox** a single test may flake on some hosts (it passes
+on Chromium). On some Windows hosts WebKit fails to launch with a
 `STATUS_DLL_NOT_FOUND` / missing `icudt77.dll` error; this is a host-level
 dependency issue, not a test problem. If you hit it, install the latest
 **Microsoft Visual C++ Redistributable (x64)** and re-run
