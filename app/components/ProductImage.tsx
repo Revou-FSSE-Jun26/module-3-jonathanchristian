@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { Product } from "@/lib/types";
 
 const GRADIENTS = [
@@ -27,8 +30,17 @@ function initials(name: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
+/** Pick the first usable image URL from a product's nested images. */
+function firstImageUrl(images: Product["images"]): string | null {
+  if (!images) return null;
+  for (const image of images) {
+    if (image?.url && image.url.trim()) return image.url;
+  }
+  return null;
+}
+
 export interface ProductImageProps {
-  product: Pick<Product, "name">;
+  product: Pick<Product, "name" | "images">;
   className?: string;
   textClassName?: string;
 }
@@ -38,6 +50,28 @@ export default function ProductImage({
   className = "h-44 w-full",
   textClassName = "text-4xl",
 }: ProductImageProps) {
+  const url = firstImageUrl(product.images);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  if (url && failedUrl !== url) {
+    return (
+      // Remote product images come from arbitrary (Cloudinary) URLs that aren't
+      // known at build time and have no fixed host/dimensions, so next/image's
+      // remotePatterns + width/height model doesn't fit. A plain <img> with an
+      // onError fallback is the right tool here.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        // Re-mount on URL change so a prior load error doesn't suppress a new src.
+        key={url}
+        src={url}
+        alt={product.name}
+        loading="lazy"
+        onError={() => setFailedUrl(url)}
+        className={`object-cover ${className}`}
+      />
+    );
+  }
+
   const gradient = GRADIENTS[hashString(product.name) % GRADIENTS.length];
   return (
     <div

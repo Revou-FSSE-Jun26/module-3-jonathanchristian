@@ -1,4 +1,5 @@
-import { getCategories, getCategory, getProducts } from "@/lib/api";
+import { Suspense } from "react";
+import { getCategories, getProducts } from "@/lib/api";
 import ProductsBrowser from "./ProductsBrowser";
 
 export default async function ProductsPage() {
@@ -7,26 +8,13 @@ export default async function ProductsPage() {
     getCategories(),
   ]);
 
-  const categoryDetails = await Promise.allSettled(
-    categories.map((category) => getCategory(category.id))
-  );
-
-  const categoryProductIds: Record<number, number[]> = {};
-  categoryDetails.forEach((result, index) => {
-    if (result.status === "fulfilled" && result.value) {
-      categoryProductIds[categories[index].id] = result.value.products.map(
-        (p) => p.id
-      );
-    } else {
-      categoryProductIds[categories[index].id] = [];
-    }
-  });
-
   return (
-    <ProductsBrowser
-      initialProducts={products}
-      categories={categories}
-      categoryProductIds={categoryProductIds}
-    />
+    // ProductsBrowser reads useSearchParams(); it must sit under a Suspense
+    // boundary so the search params resolve before it commits. Without this,
+    // the initial client render can see empty params and an incoming
+    // ?category=<id> would not seed the filter.
+    <Suspense fallback={null}>
+      <ProductsBrowser initialProducts={products} categories={categories} />
+    </Suspense>
   );
 }

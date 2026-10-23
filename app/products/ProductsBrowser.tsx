@@ -1,23 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Category, Product } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
 import { useCart } from "@/lib/cart-context";
 import SearchBar from "../components/SearchBar";
 import ProductGrid from "../components/ProductGrid";
+import Pagination from "../components/Pagination";
+
+/** Products shown per page (client-side; independent of the API's page size). */
+const PAGE_SIZE = 8;
 
 export interface ProductsBrowserProps {
   initialProducts: Product[];
   categories: Category[];
-  categoryProductIds: Record<number, number[]>;
 }
 
 export default function ProductsBrowser({
   initialProducts,
   categories,
-  categoryProductIds,
 }: ProductsBrowserProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -30,30 +32,40 @@ export default function ProductsBrowser({
     const parsed = raw ? Number.parseInt(raw, 10) : NaN;
     return Number.isInteger(parsed) ? parsed : "all";
   });
+  const [page, setPage] = useState(() => {
+    const raw = searchParams.get("page");
+    const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+  });
 
   const { itemCount, total } = useCart();
 
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (query.trim()) params.set("q", query.trim());
-    if (categoryId !== "all") params.set("category", String(categoryId));
-    const next = params.toString();
-    const current = searchParams.toString();
-    if (next !== current) {
-      router.replace(next ? `${pathname}?${next}` : pathname, {
-        scroll: false,
-      });
-    }
-  }, [query, categoryId, pathname, router, searchParams]);
+  // Push the current view (search / category / page) to the URL so it stays
+  // shareable and survives a refresh. This runs ONLY from user-action handlers
+  // below — never on every render. A render-driven effect here would overwrite
+  // an incoming `?category=<id>` during a navigation transition, which is the
+  // bug that made the category filter vanish. The initializers above are the
+  // single place the URL flows *into* state (once, on mount).
+  const syncUrl = useCallback(
+    (nextQuery: string, nextCategoryId: number | "all", nextPage: number) => {
+      const params = new URLSearchParams();
+      if (nextQuery.trim()) params.set("q", nextQuery.trim());
+      if (nextCategoryId !== "all") {
+        params.set("category", String(nextCategoryId));
+      }
+      if (nextPage > 1) params.set("page", String(nextPage));
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [router, pathname]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const allowedIds =
-      categoryId === "all" ? null : new Set(categoryProductIds[categoryId] ?? []);
 
     return products.filter((product) => {
       const inCategory =
-        allowedIds === null || product.id < 0 || allowedIds.has(product.id);
+        categoryId === "all" || product.category_id === categoryId;
       if (!inCategory) return false;
 
       if (!q) return true;
@@ -62,14 +74,43 @@ export default function ProductsBrowser({
         product.description.toLowerCase().includes(q)
       );
     });
-  }, [products, query, categoryId, categoryProductIds]);
+  }, [products, query, categoryId]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
+  // Derive the effective page rather than storing a clamped value. When the
+  // filtered set shrinks below the current page (e.g. after a search), we show
+  // the last valid page without writing state back inside an effect.
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+
+  // The slice of products visible on the current page.
+  const visible = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, safePage]);
+
+  // Reset to the first page whenever a filter changes so the user isn't left
+  // stranded on a now-nonexistent page, and push the new view to the URL.
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    setPage(1);
+    syncUrl(value, categoryId, 1);
+  };
+  const handleCategoryChange = (value: number | "all") => {
+    setCategoryId(value);
+    setPage(1);
+    syncUrl(query, value, 1);
+  };
+
+  const rangeStart = filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safePage * PAGE_SIZE, filtered.length);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 rounded-2xl border border-[var(--color-hairline)] bg-white p-4 lg:flex-row lg:items-center">
         <SearchBar
           value={query}
-          onChange={setQuery}
+          onChange={handleQueryChange}
           className="flex-1"
           placeholder="Search by name or description..."
         />
@@ -82,7 +123,7 @@ export default function ProductsBrowser({
             id="category-filter"
             value={categoryId === "all" ? "all" : String(categoryId)}
             onChange={(e) =>
-              setCategoryId(
+              handleCategoryChange(
                 e.target.value === "all"
                   ? "all"
                   : Number.parseInt(e.target.value, 10)
@@ -113,21 +154,39 @@ export default function ProductsBrowser({
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
-          Showing{" "}
-          <span className="font-semibold text-slate-700">
-            {filtered.length}
-          </span>{" "}
-          of {products.length} products
+          {filtered.length === 0 ? (
+            <>No products to show</>
+          ) : (
+            <>
+              Showing{" "}
+              <span className="font-semibold text-slate-700">
+                {rangeStart}–{rangeEnd}
+              </span>{" "}
+              of {filtered.length} products
+            </>
+          )}
         </p>
       </div>
 
       <ProductGrid
-        products={filtered}
+        products={visible}
         emptyMessage={
           query || categoryId !== "all"
             ? "No products match your filters."
             : "No products available."
         }
+      />
+
+      <Pagination
+        currentPage={safePage}
+        totalPages={totalPages}
+        onPageChange={(next) => {
+          setPage(next);
+          syncUrl(query, categoryId, next);
+          if (typeof window !== "undefined") {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }
+        }}
       />
     </div>
   );

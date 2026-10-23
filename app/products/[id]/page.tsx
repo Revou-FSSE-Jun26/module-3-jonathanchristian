@@ -67,9 +67,19 @@ export default async function ProductDetailPage(
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
               {product.name}
             </h1>
-            {/* <p className="mt-1 text-sm text-slate-400">
-              SKU · RS-{String(product.id).padStart(5, "0")}
-            </p> */}
+            {product.category_name &&
+              (product.category_id !== undefined ? (
+                <Link
+                  href={`/products?category=${product.category_id}`}
+                  className="mt-1 inline-block text-sm font-medium text-[var(--color-brand)] hover:underline"
+                >
+                  {product.category_name}
+                </Link>
+              ) : (
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  {product.category_name}
+                </p>
+              ))}
           </div>
 
           <p className="text-3xl font-bold text-[var(--color-brand)]">
