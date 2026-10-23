@@ -24,6 +24,11 @@ export default function Header() {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
+  // The cart is hidden from admins (they can't check out). Customers and guests
+  // both see it; a guest who opens it is prompted to log in before buying.
+  // Hidden while auth is resolving to avoid a flash.
+  const canUseCart = !loading && role !== "admin";
+
   // Build the nav based on role: customers see Orders; admins see Dashboard.
   const navLinks = [
     ...BASE_NAV_LINKS,
@@ -107,20 +112,22 @@ export default function Header() {
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setCartOpen(true)}
-              className="relative flex items-center gap-2 rounded-full border border-[var(--color-hairline)] px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-[var(--color-canvas-alt)]"
-              aria-label={`Open cart, ${itemCount} items`}
-            >
-              <span aria-hidden>🛒</span>
-              <span className="hidden sm:inline">Cart</span>
-              {itemCount > 0 && (
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-accent)] px-1 text-xs font-bold text-slate-900">
-                  {itemCount}
-                </span>
-              )}
-            </button>
+            {canUseCart && (
+              <button
+                type="button"
+                onClick={() => setCartOpen(true)}
+                className="relative flex items-center gap-2 rounded-full border border-[var(--color-hairline)] px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-[var(--color-canvas-alt)]"
+                aria-label={`Open cart, ${itemCount} items`}
+              >
+                <span aria-hidden>🛒</span>
+                <span className="hidden sm:inline">Cart</span>
+                {itemCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-accent)] px-1 text-xs font-bold text-slate-900">
+                    {itemCount}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -186,7 +193,9 @@ export default function Header() {
         </nav>
       </header>
 
-      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      {canUseCart && (
+        <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      )}
     </>
   );
 }
