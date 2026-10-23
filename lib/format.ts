@@ -39,3 +39,63 @@ export function stockLabel(stock: number | undefined): string {
   if (level === "low") return `Low stock — only ${stock} left`;
   return "In stock";
 }
+
+// ---------------------------------------------------------------------------
+// Order status & dates
+// ---------------------------------------------------------------------------
+
+import type { OrderStatus } from "./types";
+
+/** Human-readable label for an order status. */
+export function orderStatusLabel(status: OrderStatus): string {
+  switch (status) {
+    case "pending":
+      return "Pending payment";
+    case "processing":
+      return "Processing";
+    case "delivering":
+      return "Out for delivery";
+    case "completed":
+      return "Completed";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return status;
+  }
+}
+
+/**
+ * Tailwind utility classes (bg + text) for an order-status pill, aligned with
+ * the RevoShop palette: green = done/active, blue = in progress, amber =
+ * awaiting, grey = cancelled.
+ */
+export function orderStatusClasses(status: OrderStatus): string {
+  switch (status) {
+    case "pending":
+      return "bg-amber-100 text-amber-800";
+    case "processing":
+      return "bg-blue-100 text-blue-800";
+    case "delivering":
+      return "bg-indigo-100 text-indigo-800";
+    case "completed":
+      return "bg-emerald-100 text-emerald-800";
+    case "cancelled":
+      return "bg-slate-100 text-slate-500";
+    default:
+      return "bg-slate-100 text-slate-600";
+  }
+}
+
+/** Format an ISO date-time string into a readable date. Falls back gracefully. */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
