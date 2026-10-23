@@ -1,19 +1,23 @@
 "use client";
 
-// Frontend-only cart. State lives in React context so it stays consistent
-// while navigating within the app. All updates are immutable. No backend
-// persistence is involved for this checkpoint.
+// Frontend cart, persisted to localStorage so it survives refreshes and stays
+// in sync across tabs. State is backed by an external store read via
+// useSyncExternalStore (same pattern as the auth context) to keep SSR +
+// hydration correct. All updates are immutable. The cart itself is never sent
+// to the backend; it is converted into an order only at checkout.
 
 import {
   createContext,
   useCallback,
   useContext,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import type { CartItem, Product } from "./types";
 import { priceToNumber } from "./format";
+
+const STORAGE_KEY = "revoshop.cart";
 
 interface CartContextValue {
   items: CartItem[];
@@ -31,14 +35,111 @@ interface CartContextValue {
   clearCart: () => void;
 }
 
+// ---------------------------------------------------------------------------
+// External cart store (localStorage-backed)
+// ---------------------------------------------------------------------------
+
+const EMPTY: CartItem[] = [];
+
+function parseItems(raw: string | null): CartItem[] {
+  if (!raw) return EMPTY;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return EMPTY;
+    // Keep only well-formed entries.
+    return parsed.filter(
+      (item): item is CartItem =>
+        item &&
+        typeof item === "object" &&
+        item.product &&
+        typeof item.product.id === "number" &&
+        typeof item.quantity === "number" &&
+        item.quantity > 0
+    );
+  } catch {
+    return EMPTY;
+  }
+}
+
+let cachedRaw: string | null = null;
+let cachedItems: CartItem[] = EMPTY;
+let hydrated = false;
+const listeners = new Set<() => void>();
+
+function readRaw(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(STORAGE_KEY);
+}
+
+function getSnapshot(): CartItem[] {
+  const raw = readRaw();
+  if (!hydrated || raw !== cachedRaw) {
+    cachedRaw = raw;
+    cachedItems = parseItems(raw);
+    hydrated = true;
+  }
+  return cachedItems;
+}
+
+/** Server render (and first client render) starts with an empty cart. */
+function getServerSnapshot(): CartItem[] {
+  return EMPTY;
+}
+
+function emit(): void {
+  for (const l of listeners) l();
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === STORAGE_KEY) {
+      cachedRaw = "\u0000__stale__";
+      listener();
+    }
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    listeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function writeItems(next: CartItem[]): void {
+  if (typeof window !== "undefined") {
+    if (next.length > 0) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } else {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+  }
+  cachedRaw = next.length > 0 ? JSON.stringify(next) : null;
+  cachedItems = next;
+  hydrated = true;
+  emit();
+}
+
+/** Apply an immutable update to the current items and persist the result. */
+function updateItems(updater: (prev: CartItem[]) => CartItem[]): void {
+  writeItems(updater(getSnapshot()));
+}
+
+// ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
+
 const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const items = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot
+  );
 
   const addToCart = useCallback((product: Product, quantity = 1) => {
     if (quantity <= 0) return;
-    setItems((prev) => {
+    updateItems((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       const maxStock =
         typeof product.stock === "number" ? product.stock : Infinity;
@@ -59,7 +160,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setQuantity = useCallback((productId: number, quantity: number) => {
-    setItems((prev) => {
+    updateItems((prev) => {
       if (quantity <= 0) {
         return prev.filter((item) => item.product.id !== productId);
       }
@@ -75,10 +176,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeFromCart = useCallback((productId: number) => {
-    setItems((prev) => prev.filter((item) => item.product.id !== productId));
+    updateItems((prev) => prev.filter((item) => item.product.id !== productId));
   }, []);
 
-  const clearCart = useCallback(() => setItems([]), []);
+  const clearCart = useCallback(() => writeItems(EMPTY), []);
 
   const { itemCount, total } = useMemo(() => {
     return items.reduce(
