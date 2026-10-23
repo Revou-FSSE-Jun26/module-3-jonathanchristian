@@ -4,27 +4,34 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "../components/ProtectedRoute";
 import OrderStatusBadge from "../components/OrderStatusBadge";
+import Pagination from "../components/Pagination";
 import { getOrders } from "@/lib/api";
 import { formatDate, formatPrice } from "@/lib/format";
 import { errorMessage } from "@/lib/toast";
-import type { Order } from "@/lib/types";
+import type { Order, Pagination as PaginationMeta } from "@/lib/types";
 
 function OrdersContent() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Bump to re-trigger the fetch effect (used by the retry button).
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Fetch orders on mount / retry. The request lives inside the effect with a
-  // cancellation guard so stale responses don't update unmounted state.
+  // Fetch the current page on mount, page change, or retry. The request lives
+  // inside the effect with a cancellation guard so stale responses (e.g. from
+  // rapid page switches) don't overwrite newer state. `loading` is turned on by
+  // the actions that trigger a fetch (initial state, page change, retry) rather
+  // than inside the effect.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await getOrders({ page: 1 });
+        const data = await getOrders({ page });
         if (cancelled) return;
         setOrders(data.orders);
+        setPagination(data.pagination ?? null);
         setError(null);
       } catch (err) {
         if (cancelled) return;
@@ -36,12 +43,23 @@ function OrdersContent() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [page, reloadKey]);
 
   const retry = () => {
-    setLoading(true);
     setError(null);
+    setLoading(true);
     setReloadKey((k) => k + 1);
+  };
+
+  const totalPages = pagination?.total_pages ?? 1;
+
+  const changePage = (next: number) => {
+    if (next === page) return;
+    setLoading(true);
+    setPage(next);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   return (
@@ -98,38 +116,46 @@ function OrdersContent() {
           </Link>
         </div>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {orders.map((order) => {
-            const units = order.order_items.reduce(
-              (sum, item) => sum + item.quantity,
-              0
-            );
-            return (
-              <li key={order.id}>
-                <Link
-                  href={`/orders/${order.id}`}
-                  className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--color-hairline)] bg-white px-5 py-4 transition-shadow hover:shadow-md"
-                >
-                  <div className="flex flex-col gap-1">
-                    <span className="font-semibold text-slate-900">
-                      Order #{order.id}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {formatDate(order.created_at)} · {units}{" "}
-                      {units === 1 ? "item" : "items"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <OrderStatusBadge status={order.status} />
-                    <span className="font-bold text-slate-900">
-                      {formatPrice(order.total_amount)}
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <ul className="flex flex-col gap-3">
+            {orders.map((order) => {
+              const units = order.order_items.reduce(
+                (sum, item) => sum + item.quantity,
+                0
+              );
+              return (
+                <li key={order.id}>
+                  <Link
+                    href={`/orders/${order.id}`}
+                    className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--color-hairline)] bg-white px-5 py-4 transition-shadow hover:shadow-md"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold text-slate-900">
+                        Order #{order.id}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {formatDate(order.created_at)} · {units}{" "}
+                        {units === 1 ? "item" : "items"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <OrderStatusBadge status={order.status} />
+                      <span className="font-bold text-slate-900">
+                        {formatPrice(order.total_amount)}
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={changePage}
+          />
+        </>
       )}
     </section>
   );

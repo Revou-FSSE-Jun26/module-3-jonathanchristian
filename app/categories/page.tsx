@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: "Explore RevoShop product categories.",
 };
 
-const CATEGORY_ICONS = ["🎧", "💻", "⌚", "📱", "🏠", "🎮", "📷", "🔌"];
+const CATEGORY_ICONS = ["💻", "🎮", "🤾‍♂️", "⌚", "🔌", "🎧", "📷", "🏠"];
 
 export default async function CategoriesPage() {
   const categories = await getCategories();
