@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
+import { notifySuccess, notifyFromError, errorMessage } from "@/lib/toast";
 
 interface FieldErrors {
   email?: string;
@@ -11,38 +14,54 @@ interface FieldErrors {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginForm() {
+  const router = useRouter();
+  const { login, isAuthenticated, loading } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [success, setSuccess] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Already signed in → send away (back button can't return here).
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      router.replace("/");
+    }
+  }, [loading, isAuthenticated, router]);
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
-
     if (!email.trim()) {
       next.email = "Email is required.";
     } else if (!EMAIL_PATTERN.test(email.trim())) {
       next.email = "Enter a valid email address.";
     }
-
     if (!password) {
       next.password = "Password is required.";
-    } else if (password.length < 8) {
-      next.password = "Password must be at least 8 characters.";
     }
-
     return next;
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSuccess(false);
+    setFormError(null);
+
     const validation = validate();
     setErrors(validation);
     if (Object.keys(validation).length > 0) return;
 
-    // No API, redirect, or storage yet — placeholder only.
-    setSuccess(true);
+    setSubmitting(true);
+    try {
+      const role = await login(email.trim(), password);
+      notifySuccess("Welcome back!");
+      router.replace(role === "admin" ? "/dashboard" : "/");
+    } catch (err) {
+      const message = errorMessage(err, "Invalid email or password.");
+      setFormError(message);
+      notifyFromError(err, "Invalid email or password.");
+      setSubmitting(false);
+    }
   };
 
   const inputClass =
@@ -53,6 +72,15 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="grid gap-4">
+      {formError && (
+        <p
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          {formError}
+        </p>
+      )}
+
       <div>
         <label htmlFor="login-email" className={labelClass}>
           Email {required}
@@ -97,19 +125,11 @@ export default function LoginForm() {
 
       <button
         type="submit"
-        className="rounded-full bg-[var(--color-brand)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-brand-hover)]"
+        disabled={submitting}
+        className="rounded-full bg-[var(--color-brand)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-brand-hover)] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Login
+        {submitting ? "Signing in…" : "Login"}
       </button>
-
-      {success && (
-        <span
-          className="text-sm font-medium text-[var(--color-in-stock)]"
-          role="status"
-        >
-          Validation passed — API integration coming soon.
-        </span>
-      )}
     </form>
   );
 }

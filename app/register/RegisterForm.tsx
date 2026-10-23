@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
+import { notifySuccess, notifyFromError, errorMessage } from "@/lib/toast";
 
 interface FieldErrors {
   name?: string;
@@ -15,13 +18,24 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^[+\d][\d\s()-]{6,}$/;
 
 export default function RegisterForm() {
+  const router = useRouter();
+  const { register, isAuthenticated, loading } = useAuth();
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [success, setSuccess] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Already signed in → send away.
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      router.replace("/");
+    }
+  }, [loading, isAuthenticated, router]);
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
@@ -59,15 +73,31 @@ export default function RegisterForm() {
     return next;
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSuccess(false);
+    setFormError(null);
+
     const validation = validate();
     setErrors(validation);
     if (Object.keys(validation).length > 0) return;
 
-    // No API, redirect, or storage yet — placeholder only.
-    setSuccess(true);
+    setSubmitting(true);
+    try {
+      await register({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        password,
+        address: address.trim(),
+      });
+      notifySuccess("Account created. Welcome to RevoShop!");
+      router.replace("/");
+    } catch (err) {
+      const message = errorMessage(err, "Registration failed. Please try again.");
+      setFormError(message);
+      notifyFromError(err, "Registration failed. Please try again.");
+      setSubmitting(false);
+    }
   };
 
   const inputClass =
@@ -78,6 +108,15 @@ export default function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="grid gap-4">
+      {formError && (
+        <p
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          {formError}
+        </p>
+      )}
+
       <div>
         <label htmlFor="register-name" className={labelClass}>
           Name {required}
@@ -169,19 +208,11 @@ export default function RegisterForm() {
 
       <button
         type="submit"
-        className="rounded-full bg-[var(--color-brand)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-brand-hover)]"
+        disabled={submitting}
+        className="rounded-full bg-[var(--color-brand)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-brand-hover)] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Create account
+        {submitting ? "Creating account…" : "Create account"}
       </button>
-
-      {success && (
-        <span
-          className="text-sm font-medium text-[var(--color-in-stock)]"
-          role="status"
-        >
-          Validation passed — API integration coming soon.
-        </span>
-      )}
     </form>
   );
 }
