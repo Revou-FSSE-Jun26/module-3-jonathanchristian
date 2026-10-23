@@ -21,8 +21,10 @@ export interface Product {
   /** Price arrives as a decimal string, e.g. "320000.00". */
   price: string;
   stock: number;
-  /** Optional category link (present on some responses / after create). */
+  /** Category the product belongs to (returned by the products endpoints). */
   category_id?: number;
+  /** Human-readable category name (returned alongside `category_id`). */
+  category_name?: string;
   /** Optional nested images (Cloudinary). */
   images?: ProductImage[];
   created_at?: string;
