@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { Toaster } from "react-hot-toast";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth-context";
 import { CartProvider } from "@/lib/cart-context";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -33,15 +35,26 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${plusJakarta.variable} h-full`}>
       <body className="flex min-h-full flex-col bg-[var(--color-canvas)]">
-        <CartProvider>
-          <Suspense fallback={<HeaderFallback />}>
-            <Header />
-          </Suspense>
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-            {children}
-          </main>
-          <Footer />
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <Suspense fallback={<HeaderFallback />}>
+              <Header />
+            </Suspense>
+            <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+              {children}
+            </main>
+            <Footer />
+          </CartProvider>
+        </AuthProvider>
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              borderRadius: "12px",
+              fontSize: "0.875rem",
+            },
+          }}
+        />
       </body>
     </html>
   );

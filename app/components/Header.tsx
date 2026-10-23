@@ -1,30 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-context";
+import { useAuth } from "@/lib/auth-context";
+import { notifySuccess } from "@/lib/toast";
 import CartDrawer from "./CartDrawer";
 
-const NAV_LINKS = [
+const BASE_NAV_LINKS = [
   { href: "/", label: "Home" },
   { href: "/products", label: "Products" },
   { href: "/categories", label: "Categories" },
-  { href: "/orders", label: "Orders" },
-] as const;
-
-const AUTH_LINKS = [
-  { href: "/register", label: "Register" },
-  { href: "/login", label: "Login" },
 ] as const;
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const { itemCount } = useCart();
+  const { isAuthenticated, name, role, loading, logout } = useAuth();
   const [cartOpen, setCartOpen] = useState(false);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  // Build the nav based on role: customers see Orders; admins see Dashboard.
+  const navLinks = [
+    ...BASE_NAV_LINKS,
+    ...(isAuthenticated && role === "customer"
+      ? [{ href: "/orders", label: "Orders" } as const]
+      : []),
+    ...(isAuthenticated && role === "admin"
+      ? [{ href: "/dashboard", label: "Dashboard" } as const]
+      : []),
+  ];
+
+  const handleLogout = () => {
+    logout();
+    notifySuccess("Signed out.");
+    router.replace("/login");
+  };
+
+  const linkClass = (active: boolean) =>
+    active
+      ? "rounded-full bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white"
+      : "rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-[var(--color-canvas-alt)]";
 
   return (
     <>
@@ -40,44 +60,51 @@ export default function Header() {
           </Link>
 
           <nav className="hidden items-center gap-1 sm:flex">
-            {NAV_LINKS.map((link) => {
-              const active = isActive(link.href);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  aria-current={active ? "page" : undefined}
-                  className={
-                    active
-                      ? "rounded-full bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white"
-                      : "rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-[var(--color-canvas-alt)]"
-                  }
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={isActive(link.href) ? "page" : undefined}
+                className={linkClass(isActive(link.href))}
+              >
+                {link.label}
+              </Link>
+            ))}
           </nav>
 
           <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-1 sm:flex">
-              {AUTH_LINKS.map((link) => {
-                const active = isActive(link.href);
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    aria-current={active ? "page" : undefined}
-                    className={
-                      active
-                        ? "rounded-full bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white"
-                        : "rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-[var(--color-canvas-alt)]"
-                    }
+            <div className="hidden items-center gap-2 sm:flex">
+              {loading ? null : isAuthenticated ? (
+                <>
+                  <span className="max-w-[10rem] truncate text-sm font-semibold text-slate-700">
+                    Hi, {name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="rounded-full border border-[var(--color-hairline)] px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-[var(--color-canvas-alt)]"
                   >
-                    {link.label}
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/register"
+                    aria-current={isActive("/register") ? "page" : undefined}
+                    className={linkClass(isActive("/register"))}
+                  >
+                    Register
                   </Link>
-                );
-              })}
+                  <Link
+                    href="/login"
+                    aria-current={isActive("/login") ? "page" : undefined}
+                    className={linkClass(isActive("/login"))}
+                  >
+                    Login
+                  </Link>
+                </>
+              )}
             </div>
 
             <button
@@ -99,7 +126,7 @@ export default function Header() {
 
         {/* Mobile nav row */}
         <nav className="mx-auto mt-2 flex max-w-6xl items-center gap-1 overflow-x-auto rounded-2xl border border-[var(--color-hairline)] bg-white/80 px-2 py-2 shadow-md backdrop-blur-md sm:hidden">
-          {NAV_LINKS.map((link) => {
+          {navLinks.map((link) => {
             const active = isActive(link.href);
             return (
               <Link
@@ -122,23 +149,40 @@ export default function Header() {
             className="mx-1 h-5 w-px shrink-0 bg-[var(--color-hairline)]"
           />
 
-          {AUTH_LINKS.map((link) => {
-            const active = isActive(link.href);
-            return (
+          {loading ? null : isAuthenticated ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium text-slate-600"
+            >
+              Logout
+            </button>
+          ) : (
+            <>
               <Link
-                key={link.href}
-                href={link.href}
-                aria-current={active ? "page" : undefined}
+                href="/register"
+                aria-current={isActive("/register") ? "page" : undefined}
                 className={
-                  active
+                  isActive("/register")
                     ? "whitespace-nowrap rounded-full bg-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-white"
                     : "whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium text-slate-600"
                 }
               >
-                {link.label}
+                Register
               </Link>
-            );
-          })}
+              <Link
+                href="/login"
+                aria-current={isActive("/login") ? "page" : undefined}
+                className={
+                  isActive("/login")
+                    ? "whitespace-nowrap rounded-full bg-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-white"
+                    : "whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium text-slate-600"
+                }
+              >
+                Login
+              </Link>
+            </>
+          )}
         </nav>
       </header>
 
