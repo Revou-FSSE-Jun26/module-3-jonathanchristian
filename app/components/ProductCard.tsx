@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import type { Product } from "@/lib/types";
 import { formatPrice, stockLabel, stockLevel } from "@/lib/format";
-import { useCart } from "@/lib/cart-context";
+import { useAuth } from "@/lib/auth-context";
 import Card from "./Card";
 import ProductImage from "./ProductImage";
-import QuantityStepper from "./QuantityStepper";
+import AddToCartButton from "./AddToCartButton";
 
 export interface ProductCardProps {
   product: Product;
@@ -26,15 +25,34 @@ export default function ProductCard({
   showControls = true,
   featured = false,
 }: ProductCardProps) {
-  const { addToCart } = useCart();
-  const [quantity, setQuantity] = useState(1);
+  const { isAuthenticated, role, loading } = useAuth();
   const level = stockLevel(product.stock);
-  const outOfStock = level === "out";
 
-  const handleAdd = () => {
-    if (outOfStock) return;
-    addToCart(product, quantity);
-    setQuantity(1);
+  /**
+   * Buy action depends on who's viewing:
+   * - guest  → "Login to buy" link
+   * - customer → Add to Cart
+   * - admin  → no buy control (admins manage the catalogue, they don't shop)
+   */
+  const renderAction = () => {
+    if (loading) {
+      // During auth hydration, reserve space to avoid layout shift.
+      return <div className="h-9" aria-hidden />;
+    }
+    if (!isAuthenticated) {
+      return (
+        <Link
+          href="/login"
+          className="block w-full rounded-full border border-[var(--color-brand)] px-4 py-2 text-center text-sm font-semibold text-[var(--color-brand)] transition-colors hover:bg-[var(--color-brand)] hover:text-white"
+        >
+          Login to buy
+        </Link>
+      );
+    }
+    if (role === "admin") {
+      return null;
+    }
+    return <AddToCartButton product={product} />;
   };
 
   return (
@@ -74,30 +92,7 @@ export default function ProductCard({
           </span>
         </div>
 
-        {showControls && (
-          <div className="mt-1 flex items-center gap-2">
-            <QuantityStepper
-              value={quantity}
-              onChange={setQuantity}
-              min={1}
-              max={product.stock > 0 ? product.stock : undefined}
-              disabled={outOfStock}
-              label={`${product.name} quantity`}
-            />
-            <button
-              type="button"
-              onClick={handleAdd}
-              disabled={outOfStock}
-              className={
-                outOfStock
-                  ? "flex-1 cursor-not-allowed rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-400"
-                  : "flex-1 rounded-full bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-brand-hover)]"
-              }
-            >
-              {outOfStock ? "Sold out" : "Add to Cart"}
-            </button>
-          </div>
-        )}
+        {showControls && <div className="mt-1">{renderAction()}</div>}
       </div>
     </Card>
   );
