@@ -7,7 +7,6 @@ import { formatPrice } from "@/lib/format";
 import { useCart } from "@/lib/cart-context";
 import SearchBar from "../components/SearchBar";
 import ProductGrid from "../components/ProductGrid";
-import AddProductForm from "../components/AddProductForm";
 
 export interface ProductsBrowserProps {
   initialProducts: Product[];
@@ -24,7 +23,7 @@ export default function ProductsBrowser({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const products = initialProducts;
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [categoryId, setCategoryId] = useState<number | "all">(() => {
     const raw = searchParams.get("category");
@@ -45,7 +44,7 @@ export default function ProductsBrowser({
         scroll: false,
       });
     }
-  }, [query, categoryId]);
+  }, [query, categoryId, pathname, router, searchParams]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -64,10 +63,6 @@ export default function ProductsBrowser({
       );
     });
   }, [products, query, categoryId, categoryProductIds]);
-
-  const handleAddProduct = (product: Product) => {
-    setProducts((prev) => [product, ...prev]);
-  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -115,8 +110,6 @@ export default function ProductsBrowser({
           </span>
         </div>
       </div>
-
-      <AddProductForm onAdd={handleAddProduct} />
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
