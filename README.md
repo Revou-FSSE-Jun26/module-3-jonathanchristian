@@ -192,4 +192,4 @@ The dev server (or a production build served with `npm run start`) and the Flask
 
 ## Screenshots
 
-_Screenshots of each major view (home, product listing, product detail, category listing, register, login, cart, checkout, orders, and the admin dashboard) will be added here._
+_Screenshots of each major view (home, product listing, product detail, category listing, register, login, cart, checkout, orders, and the admin dashboard) can be viewed in `/screenshots folder`._
