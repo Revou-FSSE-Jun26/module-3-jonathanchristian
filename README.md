@@ -267,3 +267,7 @@ npx playwright test --project=chromium --project=firefox
 ## Screenshots
 
 _Screenshots of each major view (home, product listing, product detail, category listing, register, login, cart, checkout, orders, and the admin dashboard) can be viewed in `/screenshots folder`._
+
+---
+
+Disclaimer: RevoShop is a portfolio project created for educational and demonstration purposes only. It is not an actual commercial store, and no items are available for real purchase. All trademarks, logos, and product imagery belong to their respective owners.
