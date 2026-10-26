@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Category, Product } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
@@ -42,10 +42,9 @@ export default function ProductsBrowser({
 
   // Push the current view (search / category / page) to the URL so it stays
   // shareable and survives a refresh. This runs ONLY from user-action handlers
-  // below — never on every render. A render-driven effect here would overwrite
-  // an incoming `?category=<id>` during a navigation transition, which is the
-  // bug that made the category filter vanish. The initializers above are the
-  // single place the URL flows *into* state (once, on mount).
+  // below — never on every render. Writing the URL on render would fight the
+  // sync effect below; keep the two directions (state→URL and URL→state) in
+  // separate, event-driven paths.
   const syncUrl = useCallback(
     (nextQuery: string, nextCategoryId: number | "all", nextPage: number) => {
       const params = new URLSearchParams();
@@ -60,10 +59,41 @@ export default function ProductsBrowser({
     [router, pathname]
   );
 
+  // Sync incoming URL params back INTO state. The `useState` initializers above
+  // only run once per component instance, but Next.js keeps this route mounted
+  // across soft navigations (e.g. /categories → /products?category=1). Without
+  // this effect, a second navigation with a different `?category=<id>` would
+  // leave the filter stuck on the value from the first visit.
+  //
+  // Each branch writes state ONLY when the URL value actually differs from the
+  // current state. This guard prevents clobbering state during a state→URL
+  // transition (when `syncUrl` has already updated state and is mid-navigation)
+  // and avoids redundant re-renders / update loops.
+  useEffect(() => {
+    const nextQuery = searchParams.get("q") ?? "";
+    if (nextQuery !== query) setQuery(nextQuery);
+
+    const rawCategory = searchParams.get("category");
+    const parsedCategory = rawCategory ? Number.parseInt(rawCategory, 10) : NaN;
+    const nextCategoryId: number | "all" = Number.isInteger(parsedCategory)
+      ? parsedCategory
+      : "all";
+    if (nextCategoryId !== categoryId) setCategoryId(nextCategoryId);
+
+    const rawPage = searchParams.get("page");
+    const parsedPage = rawPage ? Number.parseInt(rawPage, 10) : NaN;
+    const nextPage =
+      Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    if (nextPage !== page) setPage(nextPage);
+    // We intentionally depend only on `searchParams`: this effect reacts to URL
+    // changes, not to local state edits (those flow out via `syncUrl`).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
 
-    return products.filter((product) => {
+    return products.toSorted((a, b) => a.id - b.id).filter((product) => {
       const inCategory =
         categoryId === "all" || product.category_id === categoryId;
       if (!inCategory) return false;

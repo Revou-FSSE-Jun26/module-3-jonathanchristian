@@ -17,7 +17,7 @@ const VALUE_PILLARS = [
 
 async function FeaturedProducts() {
   const products = await getProducts();
-  const featured = products.slice(0, 4);
+  const featured = products.toSorted((a, b) => a.id - b.id).slice(0, 4);
 
   return (
     <ProductGrid
