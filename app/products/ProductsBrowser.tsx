@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Category, Product } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
@@ -26,12 +26,22 @@ export default function ProductsBrowser({
   const searchParams = useSearchParams();
 
   const products = initialProducts;
-  const [query, setQuery] = useState(searchParams.get("q") ?? "");
-  const [categoryId, setCategoryId] = useState<number | "all">(() => {
+
+  // `query` and `categoryId` are DERIVED from the URL on every render — the URL
+  // is the single source of truth for the active filters. Deriving (rather than
+  // mirroring into `useState`) is what keeps repeat navigations working: when a
+  // soft navigation changes `?category=<id>`, `useSearchParams()` returns the
+  // fresh value and these recompute immediately. A `useState` mirror would only
+  // seed once on mount and go stale on the second visit — the original bug.
+  const query = searchParams.get("q") ?? "";
+  const categoryId = useMemo<number | "all">(() => {
     const raw = searchParams.get("category");
     const parsed = raw ? Number.parseInt(raw, 10) : NaN;
     return Number.isInteger(parsed) ? parsed : "all";
-  });
+  }, [searchParams]);
+
+  // `page` is genuinely local UI state (the current pagination position), so it
+  // stays in `useState`, seeded once from the URL.
   const [page, setPage] = useState(() => {
     const raw = searchParams.get("page");
     const parsed = raw ? Number.parseInt(raw, 10) : NaN;
@@ -42,9 +52,8 @@ export default function ProductsBrowser({
 
   // Push the current view (search / category / page) to the URL so it stays
   // shareable and survives a refresh. This runs ONLY from user-action handlers
-  // below — never on every render. Writing the URL on render would fight the
-  // sync effect below; keep the two directions (state→URL and URL→state) in
-  // separate, event-driven paths.
+  // below — never on every render. Since `query`/`categoryId` are derived from
+  // the URL, writing the URL here is what makes the filters actually change.
   const syncUrl = useCallback(
     (nextQuery: string, nextCategoryId: number | "all", nextPage: number) => {
       const params = new URLSearchParams();
@@ -59,36 +68,25 @@ export default function ProductsBrowser({
     [router, pathname]
   );
 
-  // Sync incoming URL params back INTO state. The `useState` initializers above
-  // only run once per component instance, but Next.js keeps this route mounted
-  // across soft navigations (e.g. /categories → /products?category=1). Without
-  // this effect, a second navigation with a different `?category=<id>` would
-  // leave the filter stuck on the value from the first visit.
+  // When the active filters change via an *external* URL change — e.g. landing
+  // on /products?category=1 after already visiting /products?category=3 on a
+  // soft navigation — reset pagination to page 1 so the user isn't stranded on
+  // a page that may not exist for the new filter. In-app filter edits already
+  // reset the page in their handlers; this effect covers the navigation path
+  // where no handler runs.
   //
-  // Each branch writes state ONLY when the URL value actually differs from the
-  // current state. This guard prevents clobbering state during a state→URL
-  // transition (when `syncUrl` has already updated state and is mid-navigation)
-  // and avoids redundant re-renders / update loops.
+  // We compare against the previous filter signature held in a ref so the only
+  // state write is the `page` reset, and only when the filters genuinely
+  // changed — not on every `searchParams` identity change (e.g. a `?page=`
+  // update, which must NOT reset the page).
+  const filterSignature = `${query}|${categoryId}`;
+  const prevFilterSignature = useRef(filterSignature);
   useEffect(() => {
-    const nextQuery = searchParams.get("q") ?? "";
-    if (nextQuery !== query) setQuery(nextQuery);
-
-    const rawCategory = searchParams.get("category");
-    const parsedCategory = rawCategory ? Number.parseInt(rawCategory, 10) : NaN;
-    const nextCategoryId: number | "all" = Number.isInteger(parsedCategory)
-      ? parsedCategory
-      : "all";
-    if (nextCategoryId !== categoryId) setCategoryId(nextCategoryId);
-
-    const rawPage = searchParams.get("page");
-    const parsedPage = rawPage ? Number.parseInt(rawPage, 10) : NaN;
-    const nextPage =
-      Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-    if (nextPage !== page) setPage(nextPage);
-    // We intentionally depend only on `searchParams`: this effect reacts to URL
-    // changes, not to local state edits (those flow out via `syncUrl`).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+    if (prevFilterSignature.current !== filterSignature) {
+      prevFilterSignature.current = filterSignature;
+      setPage(1);
+    }
+  }, [filterSignature]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -119,15 +117,15 @@ export default function ProductsBrowser({
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, safePage]);
 
-  // Reset to the first page whenever a filter changes so the user isn't left
-  // stranded on a now-nonexistent page, and push the new view to the URL.
+  // Filter changes flow out through the URL (the source of truth for
+  // query/category); `query`/`categoryId` re-derive on the resulting render.
+  // Reset pagination to page 1 so the user isn't left stranded on a
+  // now-nonexistent page.
   const handleQueryChange = (value: string) => {
-    setQuery(value);
     setPage(1);
     syncUrl(value, categoryId, 1);
   };
   const handleCategoryChange = (value: number | "all") => {
-    setCategoryId(value);
     setPage(1);
     syncUrl(query, value, 1);
   };
