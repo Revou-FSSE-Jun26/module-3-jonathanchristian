@@ -9,7 +9,7 @@ const NAV_LINKS = [
 
 const SOCIAL_LINKS = [
   {
-    href: "https://github.com",
+    href: "https://github.com/jonathanch12",
     label: "GitHub",
     icon: (
       <svg
@@ -23,7 +23,7 @@ const SOCIAL_LINKS = [
     ),
   },
   {
-    href: "https://www.linkedin.com",
+    href: "https://www.linkedin.com/in/jonathan-christian-ba3233311",
     label: "LinkedIn",
     icon: (
       <svg
