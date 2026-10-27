@@ -90,7 +90,7 @@ export default function RegisterForm() {
         password,
         address: address.trim(),
       });
-      notifySuccess("Account created. Welcome to RevoShop!");
+      notifySuccess("Account created. Welcome to KINETIC!");
       router.replace("/");
     } catch (err) {
       const message = errorMessage(err, "Registration failed. Please try again.");

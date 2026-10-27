@@ -5,7 +5,7 @@ import Card from "../components/Card";
 
 export const metadata: Metadata = {
   title: "Categories",
-  description: "Explore RevoShop product categories.",
+  description: "Explore KINETIC product categories.",
 };
 
 const CATEGORY_ICONS = ["💻", "🎮", "🤾‍♂️", "⌚", "🔌", "🎧", "📷", "🏠"];

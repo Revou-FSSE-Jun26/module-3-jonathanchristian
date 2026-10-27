@@ -24,7 +24,7 @@ export async function generateMetadata(
 
   return {
     title: product.name,
-    description: product.description || `Buy ${product.name} at RevoShop.`,
+    description: product.description || `Buy ${product.name} at KINETIC.`,
   };
 }
 

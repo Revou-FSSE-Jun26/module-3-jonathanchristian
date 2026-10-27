@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Products",
   description:
-    "Browse the full RevoShop catalogue. Search, filter by category, and add items to your cart.",
+    "Browse the full KINETIC catalogue. Search, filter by category, and add items to your cart.",
 };
 
 export default function ProductsLayout({ children }: LayoutProps<"/products">) {

@@ -1,4 +1,4 @@
-// Barrel for the RevoShop API layer.
+// Barrel for the KINETIC API layer.
 //
 // Import everything from `@/lib/api`. Each backend resource lives in its own
 // module (auth, products, categories, orders, payments) with the shared HTTP

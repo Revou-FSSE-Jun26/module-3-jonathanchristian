@@ -4,9 +4,9 @@ import { getProducts } from "@/lib/api";
 import ProductGrid from "./components/ProductGrid";
 
 export const metadata = {
-  title: "RevoShop — Modern Tech Store",
+  title: "KINETIC — Modern Tech Store",
   description:
-    "Discover audio gear, computing accessories, wearables, and smart lifestyle gadgets at RevoShop.",
+    "Discover audio gear, computing accessories, wearables, and smart lifestyle gadgets at KINETIC.",
 };
 
 const VALUE_PILLARS = [
@@ -53,7 +53,7 @@ export default function Home() {
           Precision gear for the way you work, play, and move.
         </h1>
         <p className="mt-4 max-w-xl text-base text-blue-100 sm:text-lg">
-          RevoShop brings together audio, computing, wearables, and smart
+          KINETIC brings together audio, computing, wearables, and smart
           living — with lightning-fast discovery and crystal-clear stock info.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
@@ -95,10 +95,10 @@ export default function Home() {
         <div className="mb-5 flex items-end justify-between">
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-              Featured gear
+              Featured Products
             </h2>
             <p className="text-sm text-slate-500">
-              Hand-picked from the RevoShop catalogue.
+              Hand-picked from the KINETIC catalogue.
             </p>
           </div>
           <Link

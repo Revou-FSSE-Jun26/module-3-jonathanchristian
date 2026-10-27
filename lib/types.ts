@@ -1,4 +1,4 @@
-// Shared domain types for RevoShop.
+// Shared domain types for KINETIC.
 // These mirror the fields returned by the Flask API (see local/openapi.yaml).
 
 /** User roles carried in the JWT `role` claim. */

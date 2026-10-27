@@ -15,11 +15,11 @@ const plusJakarta = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "RevoShop — Modern Tech Store",
-    template: "%s | RevoShop",
+    default: "KINETIC — Modern Tech Store",
+    template: "%s | KINETIC",
   },
   description:
-    "Discover audio gear, computing accessories, wearables, and smart lifestyle gadgets at RevoShop.",
+    "Discover audio gear, computing accessories, wearables, and smart lifestyle gadgets at KINETIC.",
 };
 
 /** Static placeholder shown while the interactive Header streams in. */

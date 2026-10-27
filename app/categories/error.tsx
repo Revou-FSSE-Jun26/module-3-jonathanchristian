@@ -22,7 +22,7 @@ export default function CategoriesError({
         We couldn&apos;t load the categories
       </h2>
       <p className="mt-1 max-w-md text-sm text-slate-500">
-        The RevoShop API may be unavailable. Make sure the API server is
+        The KINETIC API may be unavailable. Make sure the API server is
         running.
       </p>
       <button

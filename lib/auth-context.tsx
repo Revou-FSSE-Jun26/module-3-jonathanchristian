@@ -1,6 +1,6 @@
 "use client";
 
-// Authentication context for RevoShop.
+// Authentication context for KINETIC.
 //
 // Holds the signed-in session (tokens + name + role), persists it to
 // localStorage so it survives refresh, and registers a TokenProvider with the

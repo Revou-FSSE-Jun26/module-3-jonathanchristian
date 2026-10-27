@@ -22,7 +22,7 @@ export default function ProductsError({
         We couldn&apos;t load the products
       </h2>
       <p className="mt-1 max-w-md text-sm text-slate-500">
-        The RevoShop API may be unavailable. Check that the API server is
+        The KINETIC API may be unavailable. Check that the API server is
         running and that NEXT_PUBLIC_API_BASE_URL points to it.
       </p>
       <button

@@ -1,4 +1,4 @@
-// Shared HTTP client for the RevoShop Flask backend.
+// Shared HTTP client for the KINETIC Flask backend.
 //
 // Every resource module (auth, products, categories, orders, payments) goes
 // through `apiFetch` / the `request*` helpers here so that base-URL handling,

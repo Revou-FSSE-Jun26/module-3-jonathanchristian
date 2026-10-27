@@ -66,7 +66,7 @@ export function orderStatusLabel(status: OrderStatus): string {
 
 /**
  * Tailwind utility classes (bg + text) for an order-status pill, aligned with
- * the RevoShop palette: green = done/active, blue = in progress, amber =
+ * the KINETIC palette: green = done/active, blue = in progress, amber =
  * awaiting, grey = cancelled.
  */
 export function orderStatusClasses(status: OrderStatus): string {

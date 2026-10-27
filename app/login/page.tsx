@@ -4,7 +4,7 @@ import LoginForm from "./LoginForm";
 
 export const metadata: Metadata = {
   title: "Login",
-  description: "Sign in to your RevoShop account.",
+  description: "Sign in to your KINETIC account.",
 };
 
 export default function LoginPage() {
@@ -22,7 +22,7 @@ export default function LoginPage() {
           Welcome back
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Sign in to continue shopping on RevoShop.
+          Sign in to continue shopping on KINETIC.
         </p>
       </header>
 

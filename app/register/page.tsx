@@ -4,7 +4,7 @@ import RegisterForm from "./RegisterForm";
 
 export const metadata: Metadata = {
   title: "Register",
-  description: "Create your RevoShop account.",
+  description: "Create your KINETIC account.",
 };
 
 export default function RegisterPage() {
@@ -22,7 +22,7 @@ export default function RegisterPage() {
           Create your account
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Join RevoShop to track orders and check out faster.
+          Join KINETIC to track orders and check out faster.
         </p>
       </header>
 
