@@ -9,7 +9,7 @@ export default function Footer() {
             R
           </span>
           <span className="text-lg font-bold tracking-tight text-slate-900">
-            RevoShop
+            KINETIC
           </span>
         </Link>
         <nav className="flex gap-6 text-sm text-slate-500">
@@ -23,7 +23,7 @@ export default function Footer() {
             Orders
           </Link>
         </nav>
-        <p className="text-sm text-slate-400">&copy; RevoShop 2026</p>
+        <p className="text-sm text-slate-400">&copy; KINETIC 2026</p>
       </div>
     </footer>
   );

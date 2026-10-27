@@ -1,12 +1,12 @@
-# RevoShop
+# KINETIC
 
-RevoShop is a modern, responsive e-commerce frontend for discovering, buying, and managing technology products — audio equipment, computer accessories, wearables, and smart lifestyle gadgets. It is built with [Next.js](https://nextjs.org) (App Router), React, TypeScript, and Tailwind CSS, and runs against a Flask REST API.
+KINETIC is a modern, responsive e-commerce frontend for discovering, buying, and managing technology products — audio equipment, computer accessories, wearables, and smart lifestyle gadgets. It is built with [Next.js](https://nextjs.org) (App Router), React, TypeScript, and Tailwind CSS, and runs against a Flask REST API.
 
 The app supports the full shopping journey: browsing and searching the catalogue, registering and signing in, adding items to a persistent cart, placing an order, paying through Midtrans, and viewing order history. It also includes a role-based admin dashboard for managing products, categories, and orders.
 
 ## Overview
 
-RevoShop serves three kinds of visitors, each with a different experience:
+KINETIC serves three kinds of visitors, each with a different experience:
 
 - **Guests** can browse the home page, the full product listing with live search, category filtering, product detail pages, and the categories listing. On each product they see a "Login to buy" prompt instead of an add-to-cart control. They can register or sign in.
 - **Customers** (logged in, role `customer`) can do everything guests can, plus add products to a cart, view and edit the cart, check out, pay, and view their own order history and order details — including cancelling a pending order.
@@ -54,7 +54,7 @@ Authentication is JWT-based. The access and refresh tokens returned by the API a
 - **Next.js (App Router)** — routing, layouts, Server and Client Components, dynamic metadata.
 - **React** — component model and hooks.
 - **TypeScript** — end-to-end typing of components, domain models, and the API layer.
-- **Tailwind CSS** — styling and the RevoShop design system.
+- **Tailwind CSS** — styling and the KINETIC design system.
 - **react-hot-toast** — success/error notifications.
 - **next/navigation** — `useRouter`, `usePathname`, `useSearchParams` for navigation, active links, and query-param-driven search; `router.replace()` for non-returnable auth redirects.
 - **localStorage** — session persistence (JWT access/refresh tokens + user name/role) and cart persistence.
@@ -139,7 +139,7 @@ Authentication is JWT-based. The access and refresh tokens returned by the API a
 ### Prerequisites
 
 - Node.js 18.18 or newer.
-- A running RevoShop Flask API for product, category, order, and payment data.
+- A running KINETIC Flask API for product, category, order, and payment data.
 
 ### 1. Install dependencies
 
@@ -270,4 +270,4 @@ _Screenshots of each major view (home, product listing, product detail, category
 
 ---
 
-Disclaimer: RevoShop is a portfolio project created for educational and demonstration purposes only. It is not an actual commercial store, and no items are available for real purchase. All trademarks, logos, and product imagery belong to their respective owners.
+Disclaimer: KINETIC is a portfolio project created for educational and demonstration purposes only. It is not an actual commercial store, and no items are available for real purchase. All trademarks, logos, and product imagery belong to their respective owners.

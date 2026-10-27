@@ -57,10 +57,10 @@ export default function Header() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 rounded-2xl border border-[var(--color-hairline)] bg-white/80 px-4 py-3 shadow-xl backdrop-blur-md">
           <Link href="/" className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-brand)] text-base font-black text-white">
-              R
+              K
             </span>
             <span className="text-lg font-bold tracking-tight text-slate-900">
-              RevoShop
+              KINETIC
             </span>
           </Link>
 
