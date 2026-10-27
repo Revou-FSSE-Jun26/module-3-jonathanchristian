@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -56,15 +57,19 @@ export default function Header() {
       <header className="sticky top-0 z-40 px-4 pt-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 rounded-2xl border border-[var(--color-hairline)] bg-white/80 px-4 py-3 shadow-xl backdrop-blur-md">
           <Link href="/" className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-brand)] text-base font-black text-white">
-              K
-            </span>
+            <Image
+              src="/logo.png"
+              alt="KINETIC logo"
+              width={28}
+              height={28}
+              className="h-7 w-7 rounded-lg"
+            />
             <span className="text-lg font-bold tracking-tight text-slate-900">
               KINETIC
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-1 sm:flex">
+          <nav className="hidden items-center gap-1 lg:flex">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -78,7 +83,7 @@ export default function Header() {
           </nav>
 
           <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-2 sm:flex">
+            <div className="hidden items-center gap-2 lg:flex">
               {loading ? null : isAuthenticated ? (
                 <>
                   <span className="max-w-[10rem] truncate text-sm font-semibold text-slate-700">
@@ -120,7 +125,7 @@ export default function Header() {
                 aria-label={`Open cart, ${itemCount} items`}
               >
                 <span aria-hidden>🛒</span>
-                <span className="hidden sm:inline">Cart</span>
+                <span className="hidden lg:inline">Cart</span>
                 {itemCount > 0 && (
                   <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-accent)] px-1 text-xs font-bold text-slate-900">
                     {itemCount}
@@ -132,7 +137,7 @@ export default function Header() {
         </div>
 
         {/* Mobile nav row */}
-        <nav className="mx-auto mt-2 flex max-w-6xl items-center gap-1 overflow-x-auto rounded-2xl border border-[var(--color-hairline)] bg-white/80 px-2 py-2 shadow-md backdrop-blur-md sm:hidden">
+        <nav className="mx-auto mt-2 flex max-w-6xl items-center gap-1 overflow-x-auto rounded-2xl border border-[var(--color-hairline)] bg-white/80 px-2 py-2 shadow-md backdrop-blur-md lg:hidden">
           {navLinks.map((link) => {
             const active = isActive(link.href);
             return (
