@@ -17,7 +17,7 @@ import {
 import type { CartItem, Product } from "./types";
 import { priceToNumber } from "./format";
 
-const STORAGE_KEY = "revoshop.cart";
+const STORAGE_KEY = "kinetic.cart";
 
 interface CartContextValue {
   items: CartItem[];

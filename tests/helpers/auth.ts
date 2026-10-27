@@ -8,7 +8,7 @@ import { adminCredentials } from './env';
 import { login as apiLogin, type Tokens } from './api';
 
 /** The localStorage key the auth context persists the session under. */
-export const AUTH_STORAGE_KEY = 'revoshop.auth';
+export const AUTH_STORAGE_KEY = 'kinetic.auth';
 
 /**
  * Seed a signed-in session into localStorage BEFORE the app loads, so pages

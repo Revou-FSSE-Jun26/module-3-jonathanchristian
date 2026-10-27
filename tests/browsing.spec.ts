@@ -128,7 +128,7 @@ test.describe('Browsing journey', () => {
     // The cart is cleared server-side-confirmed order; assert local cart empty.
     await expect
       .poll(async () =>
-        page.evaluate(() => window.localStorage.getItem('revoshop.cart'))
+        page.evaluate(() => window.localStorage.getItem('kinetic.cart'))
       )
       .toBeNull();
 

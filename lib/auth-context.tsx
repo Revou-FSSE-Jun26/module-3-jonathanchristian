@@ -30,7 +30,7 @@ import {
 import { getRoleFromToken } from "./jwt";
 import type { AuthSession, RegisterRequest, Role } from "./types";
 
-const STORAGE_KEY = "revoshop.auth";
+const STORAGE_KEY = "kinetic.auth";
 
 // ---------------------------------------------------------------------------
 // External session store (localStorage-backed)
