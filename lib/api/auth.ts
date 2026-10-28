@@ -1,5 +1,5 @@
 // Authentication & registration API calls.
-// See local/openapi.yaml → Auth, Users.
+// See openapi.yaml → Auth, Users.
 
 import type {
   LoginRequest,
@@ -9,7 +9,12 @@ import type {
 } from "../types";
 import { apiPost } from "./client";
 
-/** Log in and obtain JWT tokens. The role is a claim inside the access token. */
+/**
+ * Log in. On success the backend sets the JWT access/refresh tokens and the
+ * CSRF tokens as cookies via Set-Cookie; the response body only carries the
+ * display name and token lifetime. The caller must look up the user's role
+ * separately (see `getCurrentUser`) since the JWT is HttpOnly and unreadable.
+ */
 export function login(credentials: LoginRequest): Promise<LoginResponse> {
   return apiPost<LoginResponse>("/auth/login", { body: credentials });
 }
@@ -23,12 +28,23 @@ export function register(input: RegisterRequest): Promise<RegisterResponse> {
 }
 
 /**
- * Exchange a refresh token for a new access token. The refresh token is sent
- * as the bearer. (The client's transparent 401-retry handles this internally;
- * this is exposed for completeness / explicit refresh if ever needed.)
+ * Exchange the refresh cookie for a new access cookie. The refresh token is
+ * sent automatically as an HttpOnly cookie; the request carries the refresh
+ * CSRF token in the X-CSRF-TOKEN header. The new access token is returned as
+ * an updated cookie, not in the body. (The client's transparent 401-retry
+ * handles this internally; exposed here for completeness.)
  */
-export function refresh(refreshToken: string): Promise<{ access_token: string }> {
-  return apiPost<{ access_token: string }>("/auth/refresh", {
-    bearerOverride: refreshToken,
+export function refresh(): Promise<{ expires_in: number; status: string }> {
+  return apiPost<{ expires_in: number; status: string }>("/auth/refresh", {
+    auth: true,
+    useRefreshCsrf: true,
   });
+}
+
+/**
+ * Log out. Clears the JWT and CSRF cookies server-side (the client cannot
+ * delete HttpOnly cookies itself). Requires no token.
+ */
+export function logout(): Promise<{ message: string; status: string }> {
+  return apiPost<{ message: string; status: string }>("/auth/logout");
 }

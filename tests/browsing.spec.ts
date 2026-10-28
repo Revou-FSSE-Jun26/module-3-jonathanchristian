@@ -29,13 +29,14 @@ test.beforeAll(async () => {
   const admin = await loginAsAdmin(api);
   product = await ensureSeededProduct(
     api,
-    admin.accessToken,
+    admin.csrfToken,
     uniqueProductName('Browse Product'),
     uniqueCategoryName('Browse Cat'),
     { price: 150000, stock: 50 }
   );
 
-  // Seed a customer account and grab real tokens for the session.
+  // Seed a customer account and log in so the context jar holds the customer's
+  // cookies (this login replaces the admin cookies used for seeding above).
   const customer = newCustomerInput();
   await registerCustomer(api, customer);
   customerTokens = await apiLogin(api, customer.email, customer.password);
@@ -46,7 +47,7 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
-  await seedCustomerSession(page, customerTokens);
+  await seedCustomerSession(page, api, customerTokens.name);
 });
 
 test.describe('Browsing journey', () => {

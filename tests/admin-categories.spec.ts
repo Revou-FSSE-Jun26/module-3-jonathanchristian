@@ -58,7 +58,7 @@ test.describe('Admin categories CRUD', () => {
   test('edit a category inline', async ({ page }) => {
     const category = await createCategory(
       api,
-      adminTokens.accessToken,
+      adminTokens.csrfToken,
       uniqueCategoryName('Edit Cat')
     );
     const newName = uniqueCategoryName('Edited Cat');
@@ -80,7 +80,7 @@ test.describe('Admin categories CRUD', () => {
   test('delete an empty category (happy path)', async ({ page }) => {
     const category = await createCategory(
       api,
-      adminTokens.accessToken,
+      adminTokens.csrfToken,
       uniqueCategoryName('Delete Cat')
     );
 
@@ -100,11 +100,11 @@ test.describe('Admin categories CRUD', () => {
   }) => {
     const category = await createCategory(
       api,
-      adminTokens.accessToken,
+      adminTokens.csrfToken,
       uniqueCategoryName('Non-empty Cat')
     );
     // Add a product to the category so the backend returns 409 on delete.
-    await createProduct(api, adminTokens.accessToken, {
+    await createProduct(api, adminTokens.csrfToken, {
       category_id: category.id,
       name: uniqueProductName('Blocks Delete'),
       price: 90000,

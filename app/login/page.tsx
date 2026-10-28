@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import LoginForm from "./LoginForm";
 
 export const metadata: Metadata = {
@@ -27,7 +28,11 @@ export default function LoginPage() {
       </header>
 
       <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-6 shadow-sm">
-        <LoginForm />
+        {/* LoginForm reads the ?next= search param, which requires a Suspense
+            boundary under the App Router. */}
+        <Suspense fallback={null}>
+          <LoginForm />
+        </Suspense>
       </div>
     </section>
   );

@@ -43,7 +43,9 @@ function loadEnvFile(file: string): void {
 
 loadEnvFile(path.resolve(__dirname, '.env'));
 
-const BASE_URL = process.env.PW_BASE_URL ?? 'http://localhost:3000';
+// The dev server runs over HTTPS (`next dev --experimental-https`) because auth
+// uses Secure cookies, so default the app URL to https.
+const BASE_URL = process.env.PW_BASE_URL ?? 'https://localhost:3000';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -69,6 +71,10 @@ export default defineConfig({
   use: {
     /* Base URL to use in actions like `await page.goto('/products')`. */
     baseURL: BASE_URL,
+
+    /* The HTTPS dev server (and a locally-run HTTPS backend) use self-signed
+     * certs, which the browser would otherwise reject. */
+    ignoreHTTPSErrors: true,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -97,6 +103,8 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: BASE_URL,
+    // The dev server uses a self-signed cert over HTTPS; don't fail readiness.
+    ignoreHTTPSErrors: true,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

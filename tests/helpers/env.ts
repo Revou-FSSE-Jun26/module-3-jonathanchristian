@@ -29,7 +29,7 @@ export function paymentsMode(): 'stub' | 'real' {
   return process.env.PW_PAYMENTS_MODE === 'real' ? 'real' : 'stub';
 }
 
-/** The app URL Playwright drives. */
+/** The app URL Playwright drives (HTTPS dev server by default). */
 export function appBaseUrl(): string {
-  return process.env.PW_BASE_URL ?? 'http://localhost:3000';
+  return process.env.PW_BASE_URL ?? 'https://localhost:3000';
 }

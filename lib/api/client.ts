@@ -2,7 +2,18 @@
 //
 // Every resource module (auth, products, categories, orders, payments) goes
 // through `apiFetch` / the `request*` helpers here so that base-URL handling,
-// bearer-auth, 401 -> refresh retry, and error normalisation live in ONE place.
+// cookie-based auth, CSRF, 401 -> refresh retry, and error normalisation live
+// in ONE place.
+//
+// Auth model (see openapi.yaml → Authentication):
+//   - The JWT access/refresh tokens are delivered as HttpOnly cookies, so JS
+//     can neither read nor attach them. We only have to send requests with
+//     `credentials: "include"` and the browser attaches them automatically.
+//   - Because cookies are sent automatically, we add double-submit CSRF
+//     protection: on every state-changing request (POST/PUT/DELETE) to a
+//     protected endpoint we read the readable `csrf_access_token` cookie and
+//     echo it back in the `X-CSRF-TOKEN` header. `/auth/refresh` instead needs
+//     the `csrf_refresh_token`.
 //
 // The base URL is read from NEXT_PUBLIC_API_BASE_URL so it is never hardcoded
 // in components.
@@ -32,22 +43,48 @@ export function getBaseUrl(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Token access
+// CSRF cookies
 //
-// The client needs the current access token to authorise requests, the refresh
-// token to renew it, and a way to persist a newly-minted access token. To avoid
-// a hard dependency on the auth context (and to keep this usable from both
-// client and server code), the token provider is injected. The auth context
-// registers a provider on the client; when none is registered (e.g. SSR of a
-// public page), requests are simply sent unauthenticated.
+// The backend sets readable (non-HttpOnly) `csrf_access_token` and
+// `csrf_refresh_token` cookies on login/refresh. We read them from
+// document.cookie and echo the right one in the X-CSRF-TOKEN header on
+// state-changing requests.
+// ---------------------------------------------------------------------------
+
+const CSRF_ACCESS_COOKIE = "csrf_access_token";
+const CSRF_REFRESH_COOKIE = "csrf_refresh_token";
+const CSRF_HEADER = "X-CSRF-TOKEN";
+
+/** Read a cookie value by name (client-side only). Returns null if absent. */
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const prefix = `${name}=`;
+  for (const part of document.cookie.split("; ")) {
+    if (part.startsWith(prefix)) {
+      return decodeURIComponent(part.slice(prefix.length));
+    }
+  }
+  return null;
+}
+
+/** Methods that mutate state and therefore require a CSRF token. */
+function isStateChanging(method: string): boolean {
+  return method === "POST" || method === "PUT" || method === "DELETE";
+}
+
+// ---------------------------------------------------------------------------
+// Session invalidation
+//
+// Auth now lives entirely in cookies the client can't read, so the client no
+// longer manages token strings. The only thing the API layer still needs from
+// the auth context is a way to tell it "your session is gone" (after a failed
+// refresh) so it can clear the cached { name, role } UI snapshot and redirect.
+// The auth context registers a provider on the client; when none is registered
+// (e.g. SSR of a public page), this is a no-op.
 // ---------------------------------------------------------------------------
 
 export interface TokenProvider {
-  getAccessToken: () => string | null;
-  getRefreshToken: () => string | null;
-  /** Persist a refreshed access token. */
-  setAccessToken: (token: string) => void;
-  /** Clear the session (called when refresh fails). */
+  /** Clear the local session snapshot (called when refresh fails / on 401). */
   onAuthFailure: () => void;
 }
 
@@ -63,7 +100,7 @@ export function setTokenProvider(provider: TokenProvider | null): void {
 // ---------------------------------------------------------------------------
 
 interface RequestOptions {
-  /** Attach the bearer access token (default false — public by default). */
+  /** Treat as an authenticated request: enables the 401 -> refresh retry. */
   auth?: boolean;
   /** Query parameters appended to the path. */
   params?: Record<string, string | number | boolean | undefined>;
@@ -71,8 +108,8 @@ interface RequestOptions {
   body?: unknown;
   /** Extra headers. */
   headers?: Record<string, string>;
-  /** Override the bearer token (used by the refresh call itself). */
-  bearerOverride?: string;
+  /** Use the refresh CSRF token instead of the access one (for /auth/refresh). */
+  useRefreshCsrf?: boolean;
 }
 
 function buildUrl(
@@ -111,6 +148,10 @@ async function parseBody(res: Response): Promise<unknown> {
 
 /**
  * Perform a single HTTP request (no refresh retry). Throws ApiError on non-OK.
+ *
+ * Always sends cookies (`credentials: "include"`) so the HttpOnly JWT cookies
+ * are attached by the browser. State-changing requests echo the matching CSRF
+ * cookie in the X-CSRF-TOKEN header.
  */
 async function rawRequest(
   method: string,
@@ -126,16 +167,19 @@ async function rawRequest(
     headers["Content-Type"] = "application/json";
   }
 
-  const bearer =
-    options.bearerOverride ??
-    (options.auth ? tokenProvider?.getAccessToken() ?? null : null);
-  if (bearer) {
-    headers.Authorization = `Bearer ${bearer}`;
+  if (isStateChanging(method)) {
+    const csrf = readCookie(
+      options.useRefreshCsrf ? CSRF_REFRESH_COOKIE : CSRF_ACCESS_COOKIE
+    );
+    if (csrf) {
+      headers[CSRF_HEADER] = csrf;
+    }
   }
 
   const res = await fetch(buildUrl(path, options.params), {
     method,
     headers,
+    credentials: "include",
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 
@@ -154,7 +198,9 @@ async function rawRequest(
 
 /**
  * Perform an authorised request, transparently refreshing the access token once
- * on a 401 before retrying. On refresh failure the session is cleared and the
+ * on a 401 before retrying. The refresh token lives in the HttpOnly
+ * `refresh_token_cookie` (sent automatically); we just POST /auth/refresh with
+ * the refresh CSRF header. On refresh failure the session is cleared and the
  * original 401 surfaces.
  */
 async function requestWithRefresh(
@@ -169,30 +215,23 @@ async function requestWithRefresh(
       throw err;
     }
 
-    const refreshToken = tokenProvider?.getRefreshToken() ?? null;
-    if (!refreshToken) {
-      tokenProvider?.onAuthFailure();
-      throw err;
-    }
-
-    // Try to refresh the access token using the refresh token as bearer.
+    // Try to refresh the access token. The refresh cookie is sent
+    // automatically; we only need to supply the refresh CSRF header.
     try {
-      const refreshed = (await rawRequest("POST", "/auth/refresh", {
-        bearerOverride: refreshToken,
-      })) as { access_token?: string } | null;
-
-      const newAccess = refreshed?.access_token;
-      if (!newAccess) {
-        tokenProvider?.onAuthFailure();
-        throw err;
-      }
-      tokenProvider?.setAccessToken(newAccess);
-
-      // Retry the original request with the new token.
-      return await rawRequest(method, path, options);
+      await rawRequest("POST", "/auth/refresh", { useRefreshCsrf: true });
     } catch (refreshErr) {
       tokenProvider?.onAuthFailure();
       throw refreshErr instanceof ApiError ? refreshErr : err;
+    }
+
+    // Retry the original request now that a fresh access cookie is set.
+    try {
+      return await rawRequest(method, path, options);
+    } catch (retryErr) {
+      if (retryErr instanceof ApiError && retryErr.status === 401) {
+        tokenProvider?.onAuthFailure();
+      }
+      throw retryErr;
     }
   }
 }

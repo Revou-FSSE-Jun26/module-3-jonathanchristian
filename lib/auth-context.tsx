@@ -2,16 +2,20 @@
 
 // Authentication context for KINETIC.
 //
-// Holds the signed-in session (tokens + name + role), persists it to
-// localStorage so it survives refresh, and registers a TokenProvider with the
-// API client so authed requests attach the bearer token and refresh
-// transparently on 401. The role is read from the JWT access-token claim.
+// Holds a UI-only session snapshot (name + role) and keeps it in sync with the
+// real auth state, which lives in HttpOnly JWT cookies set by the backend.
 //
-// Session state is backed by a small external store wrapped with
-// useSyncExternalStore. This is the idiomatic way to read from an external
-// system (localStorage) across SSR + hydration: the server snapshot is always
-// "signed out", the client reads the real value, and multiple tabs stay in
-// sync via the `storage` event — all without setState-in-effect.
+// Because the tokens are HttpOnly, JavaScript can neither read nor attach them:
+// the browser sends them automatically on credentialed requests, and the client
+// can't decode the JWT to learn the user's role. So after login we fetch the
+// authoritative role + name from `GET /users/`, and persist just { name, role }
+// to localStorage so the signed-in UI survives refresh and stays consistent
+// across tabs. Logout calls `POST /auth/logout` so the server clears the
+// cookies (the client can't delete HttpOnly cookies itself).
+//
+// The snapshot is backed by a small external store wrapped with
+// useSyncExternalStore: the server snapshot is always "signed out", the client
+// reads the real value, and multiple tabs stay in sync via the `storage` event.
 
 import {
   createContext,
@@ -23,17 +27,38 @@ import {
   type ReactNode,
 } from "react";
 import {
+  getCurrentUser,
   login as apiLogin,
+  logout as apiLogout,
   register as apiRegister,
   setTokenProvider,
 } from "./api";
-import { getRoleFromToken } from "./jwt";
 import type { AuthSession, RegisterRequest, Role } from "./types";
 
 const STORAGE_KEY = "kinetic.auth";
 
+// A readable (non-HttpOnly) marker cookie, scoped to THIS app's origin, that
+// mirrors the { role } of the UI snapshot. The real JWT is an HttpOnly cookie
+// on the BACKEND's origin, so the Next.js server (proxy.ts) can't see it; this
+// marker lets the proxy do a coarse, pre-render redirect for signed-out / wrong
+// -role users. It is NOT a security boundary — it's trivially forgeable — so
+// ProtectedRoute (client) and the backend remain the real authorities.
+const HINT_COOKIE = "kinetic.auth_hint";
+
+/** Write/clear the readable auth-hint cookie used by the server-side proxy. */
+function writeHintCookie(role: Role | null): void {
+  if (typeof document === "undefined") return;
+  if (role) {
+    // Session cookie (no Max-Age): lives for the browser session, same as the
+    // sign-in UX. SameSite=Lax is fine — it's same-origin to the app.
+    document.cookie = `${HINT_COOKIE}=${role}; path=/; SameSite=Lax`;
+  } else {
+    document.cookie = `${HINT_COOKIE}=; path=/; Max-Age=0; SameSite=Lax`;
+  }
+}
+
 // ---------------------------------------------------------------------------
-// External session store (localStorage-backed)
+// External session store (localStorage-backed, UI-only snapshot)
 // ---------------------------------------------------------------------------
 
 function parseSession(raw: string | null): AuthSession | null {
@@ -41,12 +66,10 @@ function parseSession(raw: string | null): AuthSession | null {
   try {
     const parsed = JSON.parse(raw) as Partial<AuthSession>;
     if (
-      typeof parsed.accessToken === "string" &&
-      typeof parsed.refreshToken === "string" &&
       typeof parsed.name === "string" &&
       (parsed.role === "admin" || parsed.role === "customer")
     ) {
-      return parsed as AuthSession;
+      return { name: parsed.name, role: parsed.role };
     }
   } catch {
     // Corrupt entry — treat as signed out.
@@ -100,7 +123,7 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-/** Write the session to localStorage and notify subscribers. */
+/** Write the UI session snapshot to localStorage and notify subscribers. */
 function writeSession(next: AuthSession | null): void {
   if (typeof window !== "undefined") {
     if (next) {
@@ -109,8 +132,10 @@ function writeSession(next: AuthSession | null): void {
       window.localStorage.removeItem(STORAGE_KEY);
     }
   }
-  // Update the cache synchronously so a request fired right after login sees
-  // the new token immediately.
+  // Keep the server-visible hint cookie in sync with the snapshot.
+  writeHintCookie(next?.role ?? null);
+  // Update the cache synchronously so a read right after login sees the new
+  // value immediately.
   cachedRaw = next ? JSON.stringify(next) : null;
   cachedSession = next;
   hydrated = true;
@@ -150,38 +175,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => false
   );
 
-  // Register the token provider once; it reads live values from the store.
+  // Register the token provider once. The API client only needs a way to tell
+  // us the session is gone (after a failed refresh / 401), so it can clear the
+  // snapshot and let the route guards redirect to /login.
   useEffect(() => {
     setTokenProvider({
-      getAccessToken: () => getSnapshot()?.accessToken ?? null,
-      getRefreshToken: () => getSnapshot()?.refreshToken ?? null,
-      setAccessToken: (token: string) => {
-        const current = getSnapshot();
-        if (!current) return;
-        writeSession({
-          ...current,
-          accessToken: token,
-          role: getRoleFromToken(token),
-        });
-      },
       onAuthFailure: () => writeSession(null),
     });
     return () => setTokenProvider(null);
   }, []);
 
-  const logout = useCallback(() => writeSession(null), []);
+  const logout = useCallback(() => {
+    // Clear the local snapshot immediately for a responsive UI, then ask the
+    // server to unset the HttpOnly cookies. Ignore network errors — the local
+    // session is already gone.
+    writeSession(null);
+    void apiLogout().catch(() => {
+      /* best-effort: cookies may already be expired */
+    });
+  }, []);
 
   const login = useCallback(
     async (email: string, password: string): Promise<Role> => {
+      // Sets the auth cookies. Tokens are not in the body.
       const res = await apiLogin({ email, password });
-      const role = getRoleFromToken(res.access_token);
-      writeSession({
-        accessToken: res.access_token,
-        refreshToken: res.refresh_token,
-        name: res.name,
-        role,
-      });
-      return role;
+      // The JWT is HttpOnly, so fetch the authoritative role from the backend.
+      const user = await getCurrentUser();
+      writeSession({ name: res.name || user.name, role: user.role });
+      return user.role;
     },
     []
   );

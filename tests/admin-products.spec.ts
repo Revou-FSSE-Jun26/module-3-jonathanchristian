@@ -31,7 +31,7 @@ test.beforeAll(async () => {
   // A category products can be filed under.
   category = await createCategory(
     api,
-    adminTokens.accessToken,
+    adminTokens.csrfToken,
     uniqueCategoryName('Prod Admin Cat')
   );
 });
@@ -85,7 +85,7 @@ test.describe('Admin products CRUD', () => {
 
   test('edit a product inline', async ({ page }) => {
     // Seed a product via API so the row is guaranteed present.
-    const product = await createProduct(api, adminTokens.accessToken, {
+    const product = await createProduct(api, adminTokens.csrfToken, {
       category_id: category.id,
       name: uniqueProductName('Edit Me'),
       price: 100000,
@@ -110,7 +110,7 @@ test.describe('Admin products CRUD', () => {
   });
 
   test('delete a product (happy path)', async ({ page }) => {
-    const product = await createProduct(api, adminTokens.accessToken, {
+    const product = await createProduct(api, adminTokens.csrfToken, {
       category_id: category.id,
       name: uniqueProductName('Delete Me'),
       price: 120000,
@@ -133,23 +133,27 @@ test.describe('Admin products CRUD', () => {
   }) => {
     // Create a product, then place a REAL customer order referencing it so the
     // backend returns 409 on delete.
-    const product = await createProduct(api, adminTokens.accessToken, {
+    const product = await createProduct(api, adminTokens.csrfToken, {
       category_id: category.id,
       name: uniqueProductName('Ordered'),
       price: 130000,
       stock: 10,
     });
 
+    // Place the order through a dedicated customer context so the admin `api`
+    // cookie jar is left intact.
     const customer = newCustomerInput();
     await registerCustomer(api, customer);
+    const customerApi = await createApiContext();
     const customerTokens = await apiLogin(
-      api,
+      customerApi,
       customer.email,
       customer.password
     );
-    await createOrder(api, customerTokens.accessToken, [
+    await createOrder(customerApi, customerTokens.csrfToken, [
       { product_id: product.id, quantity: 1 },
     ]);
+    await customerApi.dispose();
 
     await page.goto('/dashboard');
     const row = page.getByRole('row').filter({ hasText: product.name });

@@ -21,6 +21,10 @@ import {
 import type { Order } from '../lib/types';
 
 let api: APIRequestContext;
+// Customer orders are seeded through a dedicated context so its cookie jar
+// (holding the customer's auth cookies) is never overwritten by the admin
+// re-login that happens in beforeEach on `api`.
+let customerApi: APIRequestContext;
 let adminTokens: Tokens;
 let customerTokens: Tokens;
 let productId: number;
@@ -32,7 +36,7 @@ test.beforeAll(async () => {
   // A product with plenty of stock to support several seeded orders.
   const product = await ensureSeededProduct(
     api,
-    adminTokens.accessToken,
+    adminTokens.csrfToken,
     uniqueProductName('Order Product'),
     uniqueCategoryName('Order Cat'),
     { price: 100000, stock: 200 }
@@ -41,11 +45,13 @@ test.beforeAll(async () => {
 
   const customer = newCustomerInput();
   await registerCustomer(api, customer);
-  customerTokens = await apiLogin(api, customer.email, customer.password);
+  customerApi = await createApiContext();
+  customerTokens = await apiLogin(customerApi, customer.email, customer.password);
 });
 
 test.afterAll(async () => {
   await api.dispose();
+  await customerApi.dispose();
 });
 
 test.beforeEach(async ({ page }) => {
@@ -54,7 +60,7 @@ test.beforeEach(async ({ page }) => {
 
 /** Place a fresh pending order and return it. */
 async function seedPendingOrder(): Promise<Order> {
-  return createOrder(api, customerTokens.accessToken, [
+  return createOrder(customerApi, customerTokens.csrfToken, [
     { product_id: productId, quantity: 1 },
   ]);
 }

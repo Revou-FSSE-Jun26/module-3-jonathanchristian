@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { notifySuccess, notifyFromError, errorMessage } from "@/lib/toast";
+
+/** Only allow same-site relative paths as a post-login redirect target. */
+function safeNext(raw: string | null): string | null {
+  if (!raw) return null;
+  // Must be a root-relative path, not a protocol-relative or absolute URL.
+  return raw.startsWith("/") && !raw.startsWith("//") ? raw : null;
+}
 
 interface FieldErrors {
   email?: string;
@@ -15,6 +22,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNext(searchParams.get("next"));
   const { login, isAuthenticated, loading } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -26,9 +35,9 @@ export default function LoginForm() {
   // Already signed in → send away (back button can't return here).
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.replace("/");
+      router.replace(nextPath ?? "/");
     }
-  }, [loading, isAuthenticated, router]);
+  }, [loading, isAuthenticated, router, nextPath]);
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
@@ -55,7 +64,15 @@ export default function LoginForm() {
     try {
       const role = await login(email.trim(), password);
       notifySuccess("Welcome back!");
-      router.replace(role === "admin" ? "/dashboard" : "/");
+      // Honor an intended destination from the proxy redirect (?next=), but
+      // only if the role is allowed there; otherwise fall back to the role's
+      // default landing. Admins default to the dashboard, customers to home.
+      const fallback = role === "admin" ? "/dashboard" : "/";
+      const dest =
+        nextPath && !(role !== "admin" && nextPath.startsWith("/dashboard"))
+          ? nextPath
+          : fallback;
+      router.replace(dest);
     } catch (err) {
       const message = errorMessage(err, "Invalid email or password.");
       setFormError(message);

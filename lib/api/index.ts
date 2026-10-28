@@ -8,6 +8,7 @@ export { ApiError, setTokenProvider } from "./client";
 export type { TokenProvider } from "./client";
 
 export * from "./auth";
+export * from "./users";
 export * from "./products";
 export * from "./categories";
 export * from "./orders";

@@ -88,12 +88,15 @@ export interface LoginRequest {
   password: string;
 }
 
-/** Response body from `POST /auth/login`. Role lives inside the access token. */
+/**
+ * Response body from `POST /auth/login`. The JWT tokens are NOT in the body —
+ * they are set as HttpOnly cookies. The body only carries the display name and
+ * the access token lifetime. The role must be fetched via `GET /users/`.
+ */
 export interface LoginResponse {
   message: string;
   name: string;
-  access_token: string;
-  refresh_token: string;
+  expires_in: number;
   status: string;
 }
 
@@ -113,10 +116,16 @@ export interface RegisterResponse {
   status: string;
 }
 
-/** The authenticated session we persist in localStorage. */
+/**
+ * The authenticated session snapshot we persist in localStorage.
+ *
+ * This no longer contains tokens — the JWT lives in HttpOnly cookies the client
+ * can't read. We persist only the display name and role so the UI (header,
+ * route guards) can render a signed-in state across refreshes and tabs without
+ * a round-trip. The cookies remain the real source of auth; this snapshot is
+ * UI-only and is cleared on logout or auth failure.
+ */
 export interface AuthSession {
-  accessToken: string;
-  refreshToken: string;
   name: string;
   role: Role;
 }
