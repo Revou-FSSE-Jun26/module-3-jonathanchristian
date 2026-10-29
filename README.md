@@ -12,7 +12,7 @@ KINETIC serves three kinds of visitors, each with a different experience:
 - **Customers** (logged in, role `customer`) can do everything guests can, plus add products to a cart, view and edit the cart, check out, pay, and view their own order history and order details — including cancelling a pending order.
 - **Admins** (logged in, role `admin`) get a dashboard with full product and category CRUD and a read-only overview of all customer orders, where they can advance an order's status and delete cancelled orders.
 
-Authentication is JWT-based. The access and refresh tokens returned by the API are stored in `localStorage`, and the user's role is read from the access-token claim to drive role-aware UI and route protection.
+Authentication is JWT-based using **HttpOnly cookies**. Login does not return tokens in the response body; instead the API sets the access and refresh tokens as HttpOnly cookies that JavaScript cannot read (protecting against XSS token theft) and the browser attaches automatically. Because the tokens are unreadable by the client, the user's role is fetched from `GET /users/` after login and kept in a small UI-only snapshot (name + role) in `localStorage` to drive role-aware UI and route protection. Cookie auth is paired with double-submit CSRF protection: the API also sets readable CSRF cookies, and the client echoes them in an `X-CSRF-TOKEN` header on every state-changing request.
 
 ## Features
 
@@ -26,11 +26,11 @@ Authentication is JWT-based. The access and refresh tokens returned by the API a
 
 ### Authentication
 - Registration (`/register`) collecting name, email, phone, password, and address, validated client-side, submitted to `POST /users/`. New accounts are always customers. On success the user is automatically logged in and redirected home.
-- Login (`/login`) via `POST /auth/login`, redirecting admins to `/dashboard` and customers to `/`, with an inline error and toast on invalid credentials.
-- Logout clears the stored tokens (client-side only, per the API design) and returns to `/login`.
-- Session persists across refreshes via `localStorage`; the header shows the signed-in user's name.
+- Login (`/login`) via `POST /auth/login`, which sets the JWT cookies; the role is then read from `GET /users/`. Admins are redirected to `/dashboard` and customers to `/` (or to a `?next=` destination preserved by the server-side guard), with an inline error and toast on invalid credentials.
+- Logout calls `POST /auth/logout` so the server can clear the HttpOnly cookies (the client cannot delete them itself), then clears the local snapshot and returns to `/login`.
+- The signed-in UI state (name + role) persists across refreshes via `localStorage` and stays synced across tabs; the header shows the signed-in user's name. The real session lives in the cookies.
 - Already-authenticated users are redirected away from `/login` and `/register`. All auth redirects use `router.replace()` so the back button never returns a signed-in user to the login page.
-- A transparent token refresh retries a request once via `POST /auth/refresh` on a `401` before failing.
+- A transparent token refresh retries a request once via `POST /auth/refresh` on a `401` (the refresh cookie is sent automatically, with the refresh CSRF token echoed in the header) before failing.
 
 ### Cart, checkout, and orders (customers)
 - Add-to-cart from product cards and the product detail page, with quantity steppers clamped to stock.
@@ -47,7 +47,7 @@ Authentication is JWT-based. The access and refresh tokens returned by the API a
 
 ### Cross-cutting
 - Toast notifications (react-hot-toast) on success and error for every CRUD, cart, auth, and checkout action.
-- Client-side route protection via a `ProtectedRoute` component that redirects unauthenticated users to `/login` and wrong-role users away from pages they can't access.
+- Two-layer route protection: a server-side guard (`proxy.ts`, Next.js 16's renamed middleware) gives signed-out / wrong-role users a fast pre-render redirect on protected routes, and a client-side `ProtectedRoute` component enforces the same rules once auth hydrates. Both are UX layers; the backend remains the authority on every request. (The server guard reads a small, non-sensitive role-hint cookie, since the HttpOnly JWT cookies belong to the backend's origin and are not visible to the Next.js server.)
 
 ## Technologies Used
 
@@ -57,8 +57,9 @@ Authentication is JWT-based. The access and refresh tokens returned by the API a
 - **Tailwind CSS** — styling and the KINETIC design system.
 - **react-hot-toast** — success/error notifications.
 - **next/navigation** — `useRouter`, `usePathname`, `useSearchParams` for navigation, active links, and query-param-driven search; `router.replace()` for non-returnable auth redirects.
-- **localStorage** — session persistence (JWT access/refresh tokens + user name/role) and cart persistence.
-- **`NEXT_PUBLIC_API_BASE_URL`** — the Flask API base URL, read from the environment and never hardcoded.
+- **HttpOnly cookies + CSRF** — the JWT access/refresh tokens live in HttpOnly cookies set by the API; requests are sent with credentials and echo a CSRF token in `X-CSRF-TOKEN`. See [Authentication & cookies](#authentication--cookies).
+- **localStorage** — a UI-only session snapshot (user name + role) and cart persistence. No tokens are stored here.
+- **`NEXT_PUBLIC_API_BASE_URL`** — the Flask API base URL (HTTPS), read from the environment and never hardcoded.
 - **Playwright** — end-to-end test suite covering the auth, browsing, and admin journeys (see [Testing](#testing)).
 
 ## Project Structure
@@ -108,16 +109,16 @@ Authentication is JWT-based. The access and refresh tokens returned by the API a
 │       └── orders/                # Read-only order overview + status updates
 ├── lib/                           # Shared utilities
 │   ├── api/                       # Flask API client, one module per resource
-│   │   ├── client.ts              # Shared fetch: base URL, bearer auth, 401→refresh, error normalization
-│   │   ├── auth.ts                # login, refresh, register
+│   │   ├── client.ts              # Shared fetch: base URL, credentialed cookies, CSRF header, 401→refresh, error normalization
+│   │   ├── auth.ts                # login, refresh, logout, register
+│   │   ├── users.ts               # getCurrentUser (GET /users/ — source of the role)
 │   │   ├── products.ts            # products (paginated) + CRUD
 │   │   ├── categories.ts          # categories + CRUD
 │   │   ├── orders.ts              # orders + status update + delete
 │   │   ├── payments.ts            # Midtrans payments
 │   │   └── index.ts               # Barrel re-export (import from "@/lib/api")
-│   ├── auth-context.tsx           # Auth state: tokens, user, role; localStorage-backed
+│   ├── auth-context.tsx           # Auth state: UI snapshot (name + role); localStorage-backed, cookies are the real session
 │   ├── cart-context.tsx           # Cart state; localStorage-backed
-│   ├── jwt.ts                     # Decode the role/exp claims from the access token
 │   ├── toast.ts                   # Shared toast helpers
 │   ├── format.ts                  # Price, stock, date, and order-status formatting
 │   └── types.ts                   # Shared domain types
@@ -129,7 +130,8 @@ Authentication is JWT-based. The access and refresh tokens returned by the API a
 │   ├── admin-orders.spec.ts       # Admin order status updates
 │   └── helpers/                   # Seeding client, session/auth, data, payments
 ├── public/                        # Static assets
-├── playwright.config.ts           # Playwright config (baseURL + webServer)
+├── proxy.ts                       # Server-side route guard (Next.js 16 middleware → proxy)
+├── playwright.config.ts           # Playwright config (baseURL + webServer, HTTPS)
 ├── .env.example                   # Placeholder environment variables
 └── next.config.ts                 # Next.js configuration
 ```
@@ -139,7 +141,7 @@ Authentication is JWT-based. The access and refresh tokens returned by the API a
 ### Prerequisites
 
 - Node.js 18.18 or newer.
-- A running KINETIC Flask API for product, category, order, and payment data.
+- A running KINETIC Flask API, **served over HTTPS**, for product, category, order, and payment data. HTTPS is required locally because auth uses `Secure` cookies (see [Authentication & cookies](#authentication--cookies)).
 
 ### 1. Install dependencies
 
@@ -158,10 +160,10 @@ cp .env.example .env.local
 Then edit `.env.local`:
 
 ```
-NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
+NEXT_PUBLIC_API_BASE_URL=https://localhost:5000
 ```
 
-Use the base URL of your API with no trailing slash. The API base URL is never hardcoded in the app — it is always read from `NEXT_PUBLIC_API_BASE_URL`. Environment files with real values are git-ignored.
+Use the base URL of your API with no trailing slash. It **must be `https://`** — a `Secure` cookie is never sent over plain HTTP. Use `localhost` (not `127.0.0.1`) so the app and API share a hostname for the dev certificates. The API base URL is never hardcoded in the app — it is always read from `NEXT_PUBLIC_API_BASE_URL`. Environment files with real values are git-ignored.
 
 ### 3. Run the development server
 
@@ -169,15 +171,45 @@ Use the base URL of your API with no trailing slash. The API base URL is never h
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser to view the app. Make sure the Flask API is running and reachable at the configured base URL.
+`npm run dev` starts Next.js over HTTPS (`next dev --experimental-https`); the first run generates a local certificate you may be prompted to trust. Open [https://localhost:3000](https://localhost:3000) in your browser to view the app. Make sure the Flask API is running over HTTPS and reachable at the configured base URL.
 
 ### Other scripts
 
 ```bash
-npm run build   # Create an optimized production build
-npm run start   # Serve the production build
-npm run lint    # Run ESLint
+npm run dev:http   # Dev server over plain HTTP (auth won't work; non-auth work only)
+npm run build      # Create an optimized production build
+npm run start      # Serve the production build
+npm run lint       # Run ESLint
 ```
+
+## Authentication & cookies
+
+Auth is JWT-based over **HttpOnly cookies**, and the frontend and backend run on
+different origins (cross-site), so a few conditions must hold for the browser to
+store and resend the cookies. This is the same model in local development and in
+production.
+
+The frontend already does its part: every request is sent with
+`credentials: "include"`, and state-changing requests echo the readable CSRF
+cookie back in an `X-CSRF-TOKEN` header. For it to work end-to-end, the
+**backend** must, in both environments:
+
+- **Serve over HTTPS.** Locally, both the app (`https://localhost:3000`, via
+  `npm run dev`) and the Flask API (`https://localhost:5000`) must be HTTPS. A
+  `Secure` cookie is never sent over plain `http://`.
+- **Set the JWT/CSRF cookies with `SameSite=None; Secure`** — the same flags in
+  local and production, since the request is cross-site either way.
+- **Send CORS headers for credentialed requests:**
+  - `Access-Control-Allow-Credentials: true`
+  - `Access-Control-Allow-Origin:` the app's **exact** origin, not `*`
+    (`https://localhost:3000` locally; the deployed app URL in production)
+  - `Access-Control-Allow-Headers: Content-Type, X-CSRF-TOKEN`
+  - and answer the `OPTIONS` preflight (e.g. via Flask-CORS with
+    `supports_credentials=True`).
+
+In production (frontend and backend on separate hosts) no code change is needed:
+set `NEXT_PUBLIC_API_BASE_URL` to the backend's HTTPS URL and point the backend's
+CORS allowed origin at the deployed frontend URL.
 
 ## Testing
 
@@ -211,7 +243,8 @@ boundary is controlled by `PW_PAYMENTS_MODE`:
 
 ### Prerequisites
 
-- The Flask API running and reachable at `NEXT_PUBLIC_API_BASE_URL`.
+- The Flask API running over **HTTPS** and reachable at `NEXT_PUBLIC_API_BASE_URL`,
+  with the cookie/CORS configuration from [Authentication & cookies](#authentication--cookies).
 - A dedicated test database (tests create data with unique names and rely on the
   API's soft-deletion, so no cleanup step is required).
 - A known **admin** account (registration only ever creates customers). The
@@ -226,7 +259,8 @@ PW_ADMIN_PASSWORD=your-admin-password
 PW_PAYMENTS_MODE=stub
 ```
 
-The Playwright config auto-starts the Next.js dev server on port 3000; you only
+The Playwright config auto-starts the Next.js dev server over HTTPS on port 3000
+(`https://localhost:3000`) and ignores the self-signed certificate; you only
 need to start the Flask API yourself.
 
 ### Running the tests
