@@ -69,7 +69,7 @@ export default function Footer() {
             ))}
           </nav>
 
-          <p className="text-sm text-slate-400">&copy; KINETIC 2026</p>
+          <p className="text-sm text-slate-400">&copy; KINETIC 2026 · By Jonathan Christian</p>
         </div>
 
         {/* Right area: social links */}
