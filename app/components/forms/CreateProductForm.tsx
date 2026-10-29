@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import type { Category, CreateProductRequest, Product } from "@/lib/types";
-import { createProduct } from "@/lib/api";
+import { createProduct, addProductImages, getProduct } from "@/lib/api";
 import { notifySuccess, notifyFromError } from "@/lib/toast";
+import ProductImagesManager, {
+  type PendingImage,
+} from "./ProductImagesManager";
 
 export interface CreateProductFormProps {
   categories: Category[];
@@ -34,6 +37,8 @@ export default function CreateProductForm({
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
+  // Images chosen before the product exists; uploaded after it's created.
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,7 +48,15 @@ export default function CreateProductForm({
     setDescription("");
     setPrice("");
     setStock("");
+    // Discard any locally-collected images — they were never uploaded.
+    setPendingImages([]);
     setErrors({});
+  };
+
+  // Closing the form cancels product creation, so drop pending images too.
+  const handleClose = () => {
+    reset();
+    setOpen(false);
   };
 
   const validate = (): FieldErrors => {
@@ -95,7 +108,39 @@ export default function CreateProductForm({
     setSubmitting(true);
     try {
       const product = await createProduct(payload);
-      onCreated(product);
+
+      // Upload any images the admin queued, now that the product exists.
+      let finalProduct = product;
+      if (pendingImages.length > 0) {
+        const files = pendingImages
+          .filter((p): p is Extract<PendingImage, { kind: "file" }> => p.kind === "file")
+          .map((p) => p.file);
+        const urls = pendingImages
+          .filter((p): p is Extract<PendingImage, { kind: "url" }> => p.kind === "url")
+          .map((p) => p.url);
+
+        try {
+          // Files and URLs are separate transports (multipart vs JSON), so
+          // send each group in its own call.
+          if (files.length > 0) {
+            await addProductImages(product.id, { files });
+          }
+          if (urls.length > 0) {
+            await addProductImages(product.id, { urls });
+          }
+          // Re-fetch so the created product carries its new images.
+          finalProduct = (await getProduct(product.id)) ?? product;
+        } catch (imgErr) {
+          // The product itself was created; surface the image failure but don't
+          // lose the product from the table.
+          notifyFromError(
+            imgErr,
+            "Product created, but some images failed to upload."
+          );
+        }
+      }
+
+      onCreated(finalProduct);
       notifySuccess(`"${product.name}" created.`);
       reset();
       setOpen(false);
@@ -117,7 +162,7 @@ export default function CreateProductForm({
         </div>
         <button
           type="button"
-          onClick={() => setOpen((prev) => !prev)}
+          onClick={() => (open ? handleClose() : setOpen(true))}
           aria-expanded={open}
           className="rounded-full border border-[var(--color-hairline)] px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-[var(--color-canvas-alt)]"
         >
@@ -217,6 +262,13 @@ export default function CreateProductForm({
               <p className={errorClass}>{errors.description}</p>
             )}
           </div>
+
+          <ProductImagesManager
+            mode="create"
+            idPrefix="create"
+            pending={pendingImages}
+            onPendingChange={setPendingImages}
+          />
 
           <div>
             <button

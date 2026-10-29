@@ -69,6 +69,13 @@ export default function DashboardProductsPage() {
     setEditingId(null);
   };
 
+  // Image changes update the row but keep the editor open (unlike a field save).
+  const handleImagesChange = (product: Product) => {
+    setProducts((prev) =>
+      prev.map((p) => (p.id === product.id ? { ...p, ...product } : p))
+    );
+  };
+
   const handleDelete = async (product: Product) => {
     const confirmed = window.confirm(
       `Delete "${product.name}"? This cannot be undone.`
@@ -184,6 +191,7 @@ export default function DashboardProductsPage() {
                           product={product}
                           categories={categories}
                           onUpdated={handleUpdated}
+                          onImagesChange={handleImagesChange}
                           onCancel={() => setEditingId(null)}
                         />
                       </td>

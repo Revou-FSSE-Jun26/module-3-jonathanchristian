@@ -4,15 +4,23 @@ import { useState } from "react";
 import type {
   Category,
   Product,
+  ProductImage,
   UpdateProductRequest,
 } from "@/lib/types";
 import { updateProduct } from "@/lib/api";
 import { notifySuccess, notifyFromError } from "@/lib/toast";
+import ProductImagesManager from "./ProductImagesManager";
 
 export interface EditProductFormProps {
   product: Product;
   categories: Category[];
+  /** Called after the product fields are saved (closes the editor). */
   onUpdated: (product: Product) => void;
+  /**
+   * Called when the product's images change (add/replace/delete). Updates the
+   * dashboard row WITHOUT closing the editor, so the admin can keep editing.
+   */
+  onImagesChange?: (product: Product) => void;
   onCancel: () => void;
 }
 
@@ -32,6 +40,7 @@ export default function EditProductForm({
   product,
   categories,
   onUpdated,
+  onImagesChange,
   onCancel,
 }: EditProductFormProps) {
   const [categoryId, setCategoryId] = useState(
@@ -41,8 +50,17 @@ export default function EditProductForm({
   const [description, setDescription] = useState(product.description ?? "");
   const [price, setPrice] = useState(String(Number.parseFloat(product.price)));
   const [stock, setStock] = useState(String(product.stock));
+  const [images, setImages] = useState<ProductImage[]>(product.images ?? []);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+
+  // Image add/replace/delete hit the backend immediately. Propagate the new
+  // image list to the dashboard row right away so the thumbnail stays current,
+  // independent of the product-fields "Save changes" action.
+  const handleImagesChange = (next: ProductImage[]) => {
+    setImages(next);
+    onImagesChange?.({ ...product, images: next });
+  };
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
@@ -105,7 +123,8 @@ export default function EditProductForm({
     setSubmitting(true);
     try {
       const updated = await updateProduct(product.id, payload);
-      onUpdated(updated);
+      // Preserve the live image list (managed separately via immediate calls).
+      onUpdated({ ...updated, images });
       notifySuccess(`"${updated.name}" updated.`);
     } catch (err) {
       notifyFromError(err, "Could not update the product.");
@@ -203,6 +222,14 @@ export default function EditProductForm({
         />
         {errors.description && <p className={errorClass}>{errors.description}</p>}
       </div>
+
+      <ProductImagesManager
+        mode="edit"
+        idPrefix={`edit-${product.id}`}
+        productId={product.id}
+        images={images}
+        onImagesChange={handleImagesChange}
+      />
 
       <div className="flex items-center gap-2">
         <button

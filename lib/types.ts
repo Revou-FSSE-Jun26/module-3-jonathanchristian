@@ -30,6 +30,15 @@ export interface Product {
   created_at?: string;
 }
 
+/**
+ * Request body for adding/replacing a product image by URL.
+ * See `POST /products/{id}/images/` and `PUT /products/{id}/images/{image_id}`
+ * (the `application/json` variant).
+ */
+export interface ImageUrlInput {
+  url: string;
+}
+
 /** A category as returned by `GET /categories`. */
 export interface Category {
   id: number;

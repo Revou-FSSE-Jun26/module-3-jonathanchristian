@@ -104,7 +104,11 @@ interface RequestOptions {
   auth?: boolean;
   /** Query parameters appended to the path. */
   params?: Record<string, string | number | boolean | undefined>;
-  /** JSON body; serialised automatically. */
+  /**
+   * Request body. A `FormData` instance is sent as-is (for `multipart/form-data`
+   * file uploads) — the browser sets the boundary content-type automatically.
+   * Any other value is serialised as JSON.
+   */
   body?: unknown;
   /** Extra headers. */
   headers?: Record<string, string>;
@@ -163,7 +167,13 @@ async function rawRequest(
     ...options.headers,
   };
 
-  if (options.body !== undefined) {
+  // Detect a FormData body so we can skip JSON handling for file uploads.
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
+
+  // Only set the JSON content-type for JSON bodies. For FormData we must let
+  // the browser set `multipart/form-data` with the correct boundary itself.
+  if (options.body !== undefined && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -176,11 +186,18 @@ async function rawRequest(
     }
   }
 
+  let outgoingBody: BodyInit | undefined;
+  if (options.body !== undefined) {
+    outgoingBody = isFormData
+      ? (options.body as FormData)
+      : JSON.stringify(options.body);
+  }
+
   const res = await fetch(buildUrl(path, options.params), {
     method,
     headers,
     credentials: "include",
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: outgoingBody,
   });
 
   const body = await parseBody(res);
