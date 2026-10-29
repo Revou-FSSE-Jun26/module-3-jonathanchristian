@@ -78,8 +78,32 @@ export interface User {
   name: string;
   email: string;
   phone?: string;
+  /** Shipping/contact address. Returned by `GET /users/` and updatable via PUT. */
+  address?: string;
   role: Role;
   created_at?: string | null;
+}
+
+/**
+ * Request body for `PUT /users/` (self-service profile update).
+ *
+ * All fields are optional; only the fields present are changed. The backend
+ * rejects any other field (e.g. `email`, `role`). When `password` is provided
+ * it must be at least 8 characters. Every provided field must be a non-empty,
+ * non-whitespace string.
+ */
+export interface UpdateUserRequest {
+  name?: string;
+  password?: string;
+  phone?: string;
+  address?: string;
+}
+
+/** Response body from `PUT /users/`. */
+export interface UpdateUserResponse {
+  message: string;
+  user: User;
+  status: string;
 }
 
 /** Credentials for `POST /auth/login`. */

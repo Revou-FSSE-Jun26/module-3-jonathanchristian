@@ -19,7 +19,7 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { itemCount } = useCart();
-  const { isAuthenticated, name, role, loading, logout } = useAuth();
+  const { isAuthenticated, role, loading, logout } = useAuth();
   const [cartOpen, setCartOpen] = useState(false);
 
   const isActive = (href: string) =>
@@ -86,9 +86,13 @@ export default function Header() {
             <div className="hidden items-center gap-2 lg:flex">
               {loading ? null : isAuthenticated ? (
                 <>
-                  <span className="max-w-[10rem] truncate text-sm font-semibold text-slate-700">
-                    Hi, {name}
-                  </span>
+                  <Link
+                    href="/profile"
+                    aria-current={isActive("/profile") ? "page" : undefined}
+                    className={linkClass(isActive("/profile"))}
+                  >
+                    Profile
+                  </Link>
                   <button
                     type="button"
                     onClick={handleLogout}
@@ -162,13 +166,26 @@ export default function Header() {
           />
 
           {loading ? null : isAuthenticated ? (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium text-slate-600"
-            >
-              Logout
-            </button>
+            <>
+              <Link
+                href="/profile"
+                aria-current={isActive("/profile") ? "page" : undefined}
+                className={
+                  isActive("/profile")
+                    ? "whitespace-nowrap rounded-full bg-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-white"
+                    : "whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium text-slate-600"
+                }
+              >
+                Profile
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium text-slate-600"
+              >
+                Logout
+              </button>
+            </>
           ) : (
             <>
               <Link

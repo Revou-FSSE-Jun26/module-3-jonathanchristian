@@ -156,6 +156,12 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<Role>;
   register: (input: RegisterRequest) => Promise<Role>;
   logout: () => void;
+  /**
+   * Re-fetch the authenticated user and refresh the persisted UI snapshot
+   * (name + role). Call after a profile update so the header greeting and
+   * route guards reflect the new data. No-op if signed out.
+   */
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -216,6 +222,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [login]
   );
 
+  const refreshSession = useCallback(async (): Promise<void> => {
+    // Only meaningful while signed in; the call would 401 otherwise.
+    if (!session) return;
+    const user = await getCurrentUser();
+    writeSession({ name: user.name, role: user.role });
+  }, [session]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
@@ -226,8 +239,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      refreshSession,
     }),
-    [session, mounted, login, register, logout]
+    [session, mounted, login, register, logout, refreshSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
