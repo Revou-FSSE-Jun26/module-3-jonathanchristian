@@ -19,7 +19,7 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 ### Browsing (all visitors)
 - Home page with a hero banner and the first four featured products fetched from the API.
 - Products listing with live search by name/description and category filtering that work together, backed by `GET /products`.
-- Product detail pages (`/products/[id]`) showing name, price, stock, and description, with a dynamic page title per product.
+- Product detail pages (`/products/[id]`) showing name, price, stock, and description, with a dynamic page title per product. Products with more than one image get an image gallery: a large active image with a Prev button, clickable thumbnails, and a Next button below it to switch between images (the control appears only when there are 2+ images).
 - Categories listing that links into the filtered products view.
 - Floating pill navigation with active-route highlighting that adapts to the signed-in role.
 - Loading skeletons and error fallbacks on data-fetching routes.
@@ -28,7 +28,8 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 - Registration (`/register`) collecting name, email, phone, password, and address, validated client-side, submitted to `POST /users/`. New accounts are always customers. On success the user is automatically logged in and redirected home.
 - Login (`/login`) via `POST /auth/login`, which sets the JWT cookies; the role is then read from `GET /users/`. Admins are redirected to `/dashboard` and customers to `/` (or to a `?next=` destination preserved by the server-side guard), with an inline error and toast on invalid credentials.
 - Logout calls `POST /auth/logout` so the server can clear the HttpOnly cookies (the client cannot delete them itself), then clears the local snapshot and returns to `/login`.
-- The signed-in UI state (name + role) persists across refreshes via `localStorage` and stays synced across tabs; the header shows the signed-in user's name. The real session lives in the cookies.
+- The signed-in UI state (name + role) persists across refreshes via `localStorage` and stays synced across tabs; the header shows a "Profile" link to the signed-in user's profile. The real session lives in the cookies.
+- Self-service profile at `/profile` (any authenticated user — customer or admin), reached from the "Profile" link in the header. It loads the current user via `GET /users/` and shows the email read-only, followed by the editable fields — name, password (left blank to keep the current one), phone, and address — with **Save Changes** and **Cancel** (returns home) actions. Only changed fields are sent to `PUT /users/`, and the local session snapshot is refreshed afterward so the header stays in sync if the name changed.
 - Already-authenticated users are redirected away from `/login` and `/register`. All auth redirects use `router.replace()` so the back button never returns a signed-in user to the login page.
 - A transparent token refresh retries a request once via `POST /auth/refresh` on a `401` (the refresh cookie is sent automatically, with the refresh CSRF token echoed in the header) before failing.
 
@@ -42,6 +43,7 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 
 ### Admin dashboard (admins)
 - Product CRUD at `/dashboard`: create and edit via dedicated forms, delete with a visible error when the product has active orders (the API's `409` guard).
+- Product image management within the create and edit forms: add images by pasting a URL or uploading file(s), and (when editing) replace or delete individual images. Uploaded image files are validated client-side to be under 5 MB. When editing, add/replace/delete apply immediately via the image endpoints; when creating, images are collected locally and uploaded right after the product is created (and discarded if the form is closed before saving).
 - Category CRUD at `/dashboard/categories`: create (with name validation) and edit, delete with a visible error when products are still attached.
 - Read-only order overview at `/dashboard/orders` across all customers. Admins cannot edit order contents; they can advance an order's status along the allowed forward-only transitions (`PUT /orders/[id]`) and delete only cancelled orders (`DELETE /orders/[id]`).
 
@@ -76,16 +78,18 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 │   │   ├── Card.tsx               # Generic surface wrapper
 │   │   ├── ProductCard.tsx        # Product tile; role-aware buy control
 │   │   ├── ProductGrid.tsx        # Responsive grid of ProductCards
-│   │   ├── ProductImage.tsx       # Product image / placeholder
+│   │   ├── ProductImage.tsx       # Product image / placeholder (single image or fallback)
 │   │   ├── QuantityStepper.tsx    # Increment / decrement control
 │   │   ├── AddToCartButton.tsx    # Stepper + add-to-cart action (customers)
 │   │   ├── SearchBar.tsx          # Controlled search input
+│   │   ├── Pagination.tsx         # Reusable Prev / numbered pages / Next navigator
 │   │   ├── CartDrawer.tsx         # Slide-out cart summary
 │   │   ├── OrderStatusBadge.tsx   # Coloured order-status pill
 │   │   ├── ProtectedRoute.tsx     # Client-side auth/role route guard
 │   │   └── forms/                 # Admin dashboard forms
 │   │       ├── CreateProductForm.tsx
 │   │       ├── EditProductForm.tsx
+│   │       ├── ProductImagesManager.tsx  # Add/replace/delete product images (URL or file upload, ≤5 MB)
 │   │       ├── CreateCategoryForm.tsx
 │   │       └── EditCategoryForm.tsx
 │   ├── products/                  # Products route + nested layout
@@ -95,9 +99,16 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 │   │   ├── loading.tsx            # Loading skeleton
 │   │   ├── error.tsx              # Error fallback
 │   │   └── [id]/                  # Dynamic product detail route
+│   │       ├── page.tsx           # Product detail (Server Component data fetch)
+│   │       ├── ProductDetail.tsx  # Client-side stock badge + role-aware buy control
+│   │       ├── ProductImageGallery.tsx  # Multi-image gallery (Prev / thumbnails / Next)
+│   │       └── not-found.tsx      # 404 for a missing product
 │   ├── categories/                # Categories route (page, loading, error)
 │   ├── login/                     # Login page + form
 │   ├── register/                  # Registration page + form
+│   ├── profile/                   # Self-service profile (protected, any signed-in user)
+│   │   ├── page.tsx               # Profile page (ProtectedRoute wrapper)
+│   │   └── ProfileForm.tsx        # Load + edit name/password/phone/address
 │   ├── cart/                      # Cart page (protected, customer)
 │   ├── checkout/                  # Checkout + Pay flow (protected, customer)
 │   ├── orders/                    # Order history list + detail (protected, customer)
@@ -109,15 +120,16 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 │       └── orders/                # Read-only order overview + status updates
 ├── lib/                           # Shared utilities
 │   ├── api/                       # Flask API client, one module per resource
-│   │   ├── client.ts              # Shared fetch: base URL, credentialed cookies, CSRF header, 401→refresh, error normalization
+│   │   ├── client.ts              # Shared fetch: base URL, credentialed cookies, CSRF header, 401→refresh, error normalization, JSON or multipart (FormData) bodies
 │   │   ├── auth.ts                # login, refresh, logout, register
-│   │   ├── users.ts               # getCurrentUser (GET /users/ — source of the role)
+│   │   ├── users.ts               # getCurrentUser (GET /users/ — source of the role) + updateCurrentUser (PUT /users/)
 │   │   ├── products.ts            # products (paginated) + CRUD
 │   │   ├── categories.ts          # categories + CRUD
+│   │   ├── images.ts              # product images: list, add (URL/file), replace, delete
 │   │   ├── orders.ts              # orders + status update + delete
 │   │   ├── payments.ts            # Midtrans payments
 │   │   └── index.ts               # Barrel re-export (import from "@/lib/api")
-│   ├── auth-context.tsx           # Auth state: UI snapshot (name + role); localStorage-backed, cookies are the real session
+│   ├── auth-context.tsx           # Auth state: UI snapshot (name + role) + refreshSession; localStorage-backed, cookies are the real session
 │   ├── cart-context.tsx           # Cart state; localStorage-backed
 │   ├── toast.ts                   # Shared toast helpers
 │   ├── format.ts                  # Price, stock, date, and order-status formatting
@@ -128,8 +140,9 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 │   ├── admin-products.spec.ts     # Admin product CRUD (+ 409 edge)
 │   ├── admin-categories.spec.ts   # Admin category CRUD (+ 409 edge)
 │   ├── admin-orders.spec.ts       # Admin order status updates
-│   └── helpers/                   # Seeding client, session/auth, data, payments
+│   └── helpers/                   # API client, auth/session, data, env, payments
 ├── public/                        # Static assets
+├── certificates/                  # Local HTTPS cert/key generated by `npm run dev` (git-ignored; see Local HTTPS certificates)
 ├── proxy.ts                       # Server-side route guard (Next.js 16 middleware → proxy)
 ├── playwright.config.ts           # Playwright config (baseURL + webServer, HTTPS)
 ├── .env.example                   # Placeholder environment variables
@@ -140,7 +153,7 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 
 ### Prerequisites
 
-- Node.js 18.18 or newer.
+- Node.js 20.9 or newer (required by Next.js 16).
 - A running KINETIC Flask API, **served over HTTPS**, for product, category, order, and payment data. HTTPS is required locally because auth uses `Secure` cookies (see [Authentication & cookies](#authentication--cookies)).
 
 ### 1. Install dependencies
@@ -180,6 +193,34 @@ npm run dev:http   # Dev server over plain HTTP (auth won't work; non-auth work 
 npm run build      # Create an optimized production build
 npm run start      # Serve the production build
 npm run lint       # Run ESLint
+```
+
+### Local HTTPS certificates
+
+`npm run dev` runs Next.js over HTTPS (`next dev --experimental-https`). On the
+first run it uses `mkcert` to generate a local certificate and key into the
+`certificates/` folder — `localhost.pem` and `localhost-key.pem` — and installs
+a local certificate authority (CA) into your system trust store so the browser
+trusts `https://localhost:3000` without a warning. The `certificates/` folder is
+git-ignored.
+
+**Delete the generated `.pem` files once you're done with a local session.**
+Next reuses the files in `certificates/` if they already exist, and it only
+checks that the certificate matches the hostname — not that it was signed by the
+CA currently in your trust store. So a stale certificate left over from a
+previous session (for example, after the local CA has been regenerated) will be
+reused and the browser will reject it with `net::ERR_CERT_AUTHORITY_INVALID`.
+Removing the files lets the next `npm run dev` generate a fresh, trusted
+certificate cleanly:
+
+```bash
+# from the project root, after stopping the dev server
+rm certificates/localhost.pem certificates/localhost-key.pem
+```
+
+```powershell
+# PowerShell equivalent
+Remove-Item .\certificates\localhost.pem, .\certificates\localhost-key.pem
 ```
 
 ## Authentication & cookies
@@ -300,7 +341,11 @@ npx playwright test --project=chromium --project=firefox
 
 ## Screenshots
 
-_Screenshots of each major view (home, product listing, product detail, category listing, register, login, cart, checkout, orders, and the admin dashboard) can be viewed in `/screenshots folder`._
+_Screenshots of each major view (home, product listing, product detail, category listing, register, login, profile, cart, checkout, orders, and the admin dashboard) can be viewed in `/screenshots folder`._
+
+## Backend repository
+
+The KINETIC Flask REST API that this frontend runs against lives in a separate repository: _(link to be added)_.
 
 ---
 
