@@ -37,7 +37,7 @@ export default function DashboardProductsPage() {
           getCategories(),
         ]);
         if (cancelled) return;
-        setProducts(prods);
+        setProducts(prods.toSorted((a, b) => a.id - b.id));
         setCategories(cats);
         setError(null);
       } catch (err) {
