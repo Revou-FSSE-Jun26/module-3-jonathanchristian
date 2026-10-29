@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProduct } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
-import ProductImage from "../../components/ProductImage";
+import ProductImageGallery from "./ProductImageGallery";
 import ProductDetail from "./ProductDetail";
 
 function parseId(raw: string): number | null {
@@ -54,13 +54,7 @@ export default async function ProductDetailPage(
       </nav>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-3xl border border-[var(--color-hairline)]">
-          <ProductImage
-            product={product}
-            className="aspect-square w-full"
-            textClassName="text-7xl"
-          />
-        </div>
+        <ProductImageGallery product={product} />
 
         <div className="flex flex-col gap-5">
           <div>

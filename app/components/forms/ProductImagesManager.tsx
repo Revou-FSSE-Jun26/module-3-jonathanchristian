@@ -20,7 +20,35 @@ import {
   replaceProductImage,
   deleteProductImage,
 } from "@/lib/api";
-import { notifySuccess, notifyFromError } from "@/lib/toast";
+import { notifySuccess, notifyFromError, notifyError } from "@/lib/toast";
+
+/** Maximum allowed size per uploaded image file (5 MB). */
+const MAX_IMAGE_FILE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Keep only image files under the 5 MB limit. Any oversized files are dropped
+ * and reported by name in an error toast, so they never enter state or an
+ * upload request.
+ */
+function filterBySize(selected: File[]): File[] {
+  const allowed: File[] = [];
+  const rejected: string[] = [];
+  for (const file of selected) {
+    if (file.size > MAX_IMAGE_FILE_BYTES) {
+      rejected.push(file.name);
+    } else {
+      allowed.push(file);
+    }
+  }
+  if (rejected.length > 0) {
+    notifyError(
+      `${rejected.join(", ")} ${
+        rejected.length === 1 ? "is" : "are"
+      } larger than 5 MB and was not added.`
+    );
+  }
+  return allowed;
+}
 
 /** A not-yet-uploaded image chosen during product creation. */
 export type PendingImage =
@@ -288,7 +316,9 @@ export default function ProductImagesManager(props: ProductImagesManagerProps) {
             type="file"
             accept="image/*"
             multiple
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+            onChange={(e) =>
+              setFiles(filterBySize(Array.from(e.target.files ?? [])))
+            }
             className={fileInputClass}
           />
         </div>
@@ -411,7 +441,11 @@ function ImageRow({
               id={`${idPrefix}-replace-file-${alt}`}
               type="file"
               accept="image/*"
-              onChange={(e) => setReplaceFile(e.target.files?.[0] ?? null)}
+              onChange={(e) =>
+                setReplaceFile(
+                  filterBySize(Array.from(e.target.files ?? []))[0] ?? null
+                )
+              }
               className={fileInputClass}
             />
           </div>
