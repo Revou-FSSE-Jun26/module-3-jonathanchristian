@@ -343,9 +343,19 @@ npx playwright test --project=chromium --project=firefox
 
 _Screenshots of each major view (home, product listing, product detail, category listing, register, login, profile, cart, checkout, orders, and the admin dashboard) can be viewed in `/screenshots folder`._
 
-## Backend repository
+## Backend Repository
 
 The KINETIC Flask REST API that this frontend runs against lives in a separate repository: _(link to be added)_.
+
+## Deployment
+
+The deployed project is live and can be accesed at:
+
+_(link to be added)_
+
+> [!NOTE]  
+> **Live Demo Status:** The production deployment on _(link to be added)_ reflects the stable release at commit _(link to be added)_.  
+> Recent commits on the `main` branch contain unreleased updates and work-in-progress features that are not yet deployed.
 
 ---
 
