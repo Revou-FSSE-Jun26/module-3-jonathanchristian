@@ -355,16 +355,18 @@ _Screenshots of each major view (home, product listing, product detail, category
 
 ## Backend Repository
 
-The KINETIC Flask REST API that this frontend runs against lives in a separate repository: _(link to be added)_.
+The KINETIC Flask REST API that this frontend runs against lives in a separate repository:
+
+https://github.com/jonathanch12/kinetic-be
 
 ## Deployment
 
 The deployed project is live and can be accesed at:
 
-_(link to be added)_
+https://kinetic-fe.vercel.app/
 
 > [!NOTE]  
-> **Live Demo Status:** The production deployment on _(link to be added)_ reflects the stable release at commit _(link to be added)_.  
+> **Live Demo Status:** The production deployment on [Vercel](https://kinetic-fe.vercel.app/) reflects the stable release at commit [`b189395`](https://github.com/jonathanch12/kinetic-fe/commit/b189395b981056874c6f1e4c30fcf91df55e9258).  
 > Recent commits on the `main` branch contain unreleased updates and work-in-progress features that are not yet deployed.
 
 ---
