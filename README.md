@@ -17,7 +17,8 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 ## Features
 
 ### Browsing (all visitors)
-- Home page with a hero banner and the first four featured products fetched from the API.
+- Home page with a hero promo carousel, value pillars, and the first four featured products fetched from the API.
+- Hero promo carousel (built with Embla Carousel) that rotates three static promo slides — "Tech season 2026", free express shipping, and shop by category — each with its own call-to-action links. It loops back to the first slide after the last, autoplays every 5 seconds, and can be navigated with dot buttons or by swiping/dragging. A pause/play button stops autoplay; autoplay also pauses while the mouse hovers the carousel or keyboard focus is inside it, and starts paused for users who prefer reduced motion. ARIA attributes are set manually: the carousel and each slide are labelled (e.g. "1 of 3: Tech season 2026"), the active dot is marked with `aria-current`, off-screen slides are `inert`, and slide changes made by the user (not by autoplay) are announced to screen readers.
 - Products listing with live search by name/description and category filtering that work together, backed by `GET /products`.
 - Product detail pages (`/products/[id]`) showing name, price, stock, and description, with a dynamic page title per product. Products with more than one image get an image gallery: a large active image with a Prev button, clickable thumbnails, and a Next button below it to switch between images (the control appears only when there are 2+ images).
 - Categories listing that links into the filtered products view.
@@ -58,6 +59,7 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 - **TypeScript** — end-to-end typing of components, domain models, and the API layer.
 - **Tailwind CSS** — styling and the KINETIC design system.
 - **react-hot-toast** — success/error notifications.
+- **Embla Carousel** (`embla-carousel-react` + `embla-carousel-autoplay`, v8.6.0) — the looping, autoplaying hero promo carousel on the home page.
 - **next/navigation** — `useRouter`, `usePathname`, `useSearchParams` for navigation, active links, and query-param-driven search; `router.replace()` for non-returnable auth redirects.
 - **HttpOnly cookies + CSRF** — the JWT access/refresh tokens live in HttpOnly cookies set by the API; requests are sent with credentials and echo a CSRF token in `X-CSRF-TOKEN`. See [Authentication & cookies](#authentication--cookies).
 - **localStorage** — a UI-only session snapshot (user name + role) and cart persistence. No tokens are stored here.
@@ -70,11 +72,12 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 .
 ├── app/                           # App Router routes, layouts, and UI
 │   ├── layout.tsx                 # Root layout — AuthProvider + CartProvider + Header/Footer + Toaster
-│   ├── page.tsx                   # Home page (featured products)
+│   ├── page.tsx                   # Home page (hero carousel, value pillars, featured products)
 │   ├── globals.css                # Global styles and design tokens
 │   ├── components/                # Reusable React components
 │   │   ├── Header.tsx             # Role-aware navigation with active-route highlighting
 │   │   ├── Footer.tsx             # Brand + copyright
+│   │   ├── HeroCarousel.tsx       # Home hero promo carousel (Embla: loop, 5s autoplay, dots, pause/play)
 │   │   ├── Card.tsx               # Generic surface wrapper
 │   │   ├── ProductCard.tsx        # Product tile; role-aware buy control
 │   │   ├── ProductGrid.tsx        # Responsive grid of ProductCards
