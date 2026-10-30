@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import OrderStatusBadge from "../../components/OrderStatusBadge";
+import DeliveryDetails from "../../components/DeliveryDetails";
 import { getOrder, getProduct, updateOrderStatus, createPayment } from "@/lib/api";
 import { formatDate, formatPrice } from "@/lib/format";
 import { notifySuccess, notifyFromError, errorMessage } from "@/lib/toast";
@@ -197,6 +198,8 @@ function OrderDetailContent({ orderId }: { orderId: number }) {
           </span>
         </div>
       </div>
+
+      <DeliveryDetails order={order} />
 
       {isPending && (
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">

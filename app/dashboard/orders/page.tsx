@@ -3,14 +3,21 @@
 import { Fragment, useEffect, useState } from "react";
 import {
   getOrders,
+  getProduct,
   updateOrderStatus,
   deleteOrder,
   ApiError,
 } from "@/lib/api";
 import { formatDate, formatPrice } from "@/lib/format";
 import { notifySuccess, notifyFromError, errorMessage } from "@/lib/toast";
-import type { Order, OrderStatus } from "@/lib/types";
+import type {
+  Order,
+  OrderStatus,
+  Pagination as PaginationMeta,
+} from "@/lib/types";
 import OrderStatusBadge from "../../components/OrderStatusBadge";
+import DeliveryDetails from "../../components/DeliveryDetails";
+import Pagination from "../../components/Pagination";
 
 /**
  * Admin forward-only status transitions, mirroring the backend rules.
@@ -26,36 +33,98 @@ const NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
 
 export default function DashboardOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  // Product names cached across expansions (best-effort; falls back to id).
+  const [names, setNames] = useState<Record<number, string>>({});
 
+  // When an order is expanded, resolve names for any products not yet cached.
   useEffect(() => {
+    if (expandedId === null) return;
+    const order = orders.find((o) => o.id === expandedId);
+    if (!order) return;
+    const missing = Array.from(
+      new Set(order.order_items.map((i) => i.product_id))
+    ).filter((id) => !(id in names));
+    if (missing.length === 0) return;
+
     let cancelled = false;
     (async () => {
-      try {
-        const data = await getOrders({ page: 1 });
-        if (cancelled) return;
-        setOrders(data.orders);
-        setError(null);
-      } catch (err) {
-        if (cancelled) return;
-        setError(errorMessage(err, "Could not load orders."));
-      } finally {
-        if (!cancelled) setLoading(false);
+      const entries = await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const product = await getProduct(id);
+            return [id, product?.name ?? `Product #${id}`] as const;
+          } catch {
+            return [id, `Product #${id}`] as const;
+          }
+        })
+      );
+      if (!cancelled) {
+        setNames((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [expandedId, orders, names]);
+
+  // Fetch the current page on mount, page change, retry, or after a delete.
+  // `loading` is switched on by the triggering action (not here), so a
+  // post-delete refetch updates the table in place without a skeleton flash.
+  useEffect(() => {
+    let cancelled = false;
+    let steppingBack = false;
+    (async () => {
+      try {
+        const data = await getOrders({ page });
+        if (cancelled) return;
+        // If the page no longer exists (e.g. its last order was deleted),
+        // step back to the new last page; the effect re-runs for it.
+        const lastPage = Math.max(data.pagination?.total_pages ?? 1, 1);
+        if (data.orders.length === 0 && page > lastPage) {
+          steppingBack = true;
+          setLoading(true);
+          setPage(lastPage);
+          return;
+        }
+        setOrders(data.orders);
+        setPagination(data.pagination ?? null);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError(errorMessage(err, "Could not load orders."));
+      } finally {
+        // Keep the current view until the stepped-back page arrives.
+        if (!cancelled && !steppingBack) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, reloadKey]);
 
   const retry = () => {
     setLoading(true);
     setError(null);
     setReloadKey((k) => k + 1);
+  };
+
+  const totalPages = pagination?.total_pages ?? 1;
+
+  const changePage = (next: number) => {
+    if (next === page) return;
+    setLoading(true);
+    setExpandedId(null);
+    setPage(next);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const handleStatusChange = async (order: Order, status: OrderStatus) => {
@@ -85,6 +154,9 @@ export default function DashboardOrdersPage() {
     try {
       await deleteOrder(order.id);
       setOrders((prev) => prev.filter((o) => o.id !== order.id));
+      if (expandedId === order.id) setExpandedId(null);
+      // Refetch so the page backfills from the next one and totals stay right.
+      setReloadKey((k) => k + 1);
       notifySuccess(`Order #${order.id} deleted.`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -154,9 +226,19 @@ export default function DashboardOrdersPage() {
                               id === order.id ? null : order.id
                             )
                           }
-                          className="font-semibold text-slate-900 hover:text-[var(--color-brand)]"
+                          aria-expanded={expandedId === order.id}
+                          aria-controls={`order-details-${order.id}`}
+                          className="inline-flex items-center gap-1 font-semibold text-slate-900 hover:text-[var(--color-brand)]"
                         >
                           #{order.id}
+                          <span aria-hidden className="text-xs text-slate-400">
+                            {expandedId === order.id ? "▲" : "▼"}
+                          </span>
+                          <span className="sr-only">
+                            {expandedId === order.id
+                              ? "Hide details"
+                              : "Show details"}
+                          </span>
                         </button>
                         <p className="text-xs text-slate-500">
                           {formatDate(order.created_at)} · {units}{" "}
@@ -164,7 +246,14 @@ export default function DashboardOrdersPage() {
                         </p>
                       </td>
                       <td className="px-5 py-4 text-slate-600">
-                        User #{order.user_id}
+                        <p className="font-medium text-slate-900">
+                          {order.customer_name?.trim() || `User #${order.user_id}`}
+                        </p>
+                        {order.customer_email && (
+                          <p className="text-xs text-slate-500">
+                            {order.customer_email}
+                          </p>
+                        )}
                       </td>
                       <td className="px-5 py-4 font-semibold text-slate-900">
                         {formatPrice(order.total_amount)}
@@ -208,25 +297,58 @@ export default function DashboardOrdersPage() {
                     </tr>
                     {expandedId === order.id && (
                       <tr>
-                        <td colSpan={5} className="bg-[var(--color-canvas)] px-5 py-4">
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Items (read-only)
-                          </p>
-                          <ul className="flex flex-col gap-1 text-sm text-slate-700">
-                            {order.order_items.map((item) => (
-                              <li
-                                key={item.product_id}
-                                className="flex justify-between"
-                              >
-                                <span>
-                                  Product #{item.product_id} ×{item.quantity}
+                        <td
+                          id={`order-details-${order.id}`}
+                          colSpan={5}
+                          className="bg-[var(--color-canvas)] px-5 py-4"
+                        >
+                          <div className="flex flex-col gap-4">
+                            <div className="overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-white">
+                              <table className="w-full text-left text-sm">
+                                <caption className="sr-only">
+                                  Items in order #{order.id}
+                                </caption>
+                                <thead className="border-b border-[var(--color-hairline)] bg-[var(--color-canvas)] text-xs uppercase tracking-wide text-slate-500">
+                                  <tr>
+                                    <th className="px-5 py-3 font-semibold">Product</th>
+                                    <th className="px-5 py-3 font-semibold">Unit price</th>
+                                    <th className="px-5 py-3 font-semibold">Qty</th>
+                                    <th className="px-5 py-3 text-right font-semibold">
+                                      Subtotal
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[var(--color-hairline)]">
+                                  {order.order_items.map((item) => (
+                                    <tr key={item.product_id}>
+                                      <td className="px-5 py-3 font-medium text-slate-900">
+                                        {names[item.product_id] ??
+                                          `Product #${item.product_id}`}
+                                      </td>
+                                      <td className="px-5 py-3 tabular-nums text-slate-600">
+                                        {formatPrice(item.unit_price)}
+                                      </td>
+                                      <td className="px-5 py-3 tabular-nums text-slate-600">
+                                        {item.quantity}
+                                      </td>
+                                      <td className="px-5 py-3 text-right font-semibold tabular-nums text-slate-900">
+                                        {formatPrice(item.unit_price * item.quantity)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              <div className="flex items-center justify-between border-t border-[var(--color-hairline)] bg-[var(--color-canvas)] px-5 py-3">
+                                <span className="text-sm font-medium text-slate-500">
+                                  Total
                                 </span>
-                                <span className="tabular-nums">
-                                  {formatPrice(item.unit_price * item.quantity)}
+                                <span className="text-base font-bold tabular-nums text-slate-900">
+                                  {formatPrice(order.total_amount)}
                                 </span>
-                              </li>
-                            ))}
-                          </ul>
+                              </div>
+                            </div>
+                            <DeliveryDetails order={order} />
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -236,6 +358,15 @@ export default function DashboardOrdersPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {!error && (
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={changePage}
+          disabled={loading}
+        />
       )}
     </div>
   );

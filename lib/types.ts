@@ -187,6 +187,12 @@ export interface Order {
   user_id: number;
   total_amount: number;
   status: OrderStatus;
+  /** Delivery details captured when the order was placed. Optional/nullable
+   *  so orders created before these fields existed still type-check. */
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  customer_address?: string | null;
   order_items: OrderItem[];
   created_at?: string | null;
 }
