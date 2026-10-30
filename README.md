@@ -8,7 +8,7 @@ The app supports the full shopping journey: browsing and searching the catalogue
 
 KINETIC serves three kinds of visitors, each with a different experience:
 
-- **Guests** can browse the home page, the full product listing with live search, category filtering, product detail pages, and the categories listing. On each product they see a "Login to buy" prompt instead of an add-to-cart control. They can register or sign in.
+- **Guests** can browse the home page, the full product listing with live search, category filtering, a price range slider, product detail pages, and the categories listing. On each product they see a "Login to buy" prompt instead of an add-to-cart control. They can register or sign in.
 - **Customers** (logged in, role `customer`) can do everything guests can, plus add products to a cart, view and edit the cart, check out, pay, and view their own order history and order details — including cancelling a pending order.
 - **Admins** (logged in, role `admin`) get a dashboard with full product and category CRUD and a read-only overview of all customer orders, where they can advance an order's status and delete cancelled orders.
 
@@ -19,7 +19,9 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 ### Browsing (all visitors)
 - Home page with a hero promo carousel, value pillars, and the first four featured products fetched from the API.
 - Hero promo carousel (built with Embla Carousel) that rotates three static promo slides — "Tech season 2026", free express shipping, and shop by category — each with its own call-to-action links. It loops back to the first slide after the last, autoplays every 5 seconds, and can be navigated with dot buttons or by swiping/dragging. A pause/play button stops autoplay; autoplay also pauses while the mouse hovers the carousel or keyboard focus is inside it, and starts paused for users who prefer reduced motion. ARIA attributes are set manually: the carousel and each slide are labelled (e.g. "1 of 3: Tech season 2026"), the active dot is marked with `aria-current`, off-screen slides are `inert`, and slide changes made by the user (not by autoplay) are announced to screen readers.
-- Products listing with live search by name/description and category filtering that work together, backed by `GET /products`.
+- Products listing with live search by name/description, category filtering, and a price range filter that all work together, backed by `GET /products`.
+- Dual-handle price range slider on the products listing, built from two stacked native `<input type="range">` elements with no external library. Its bounds come from the catalogue's lowest and highest prices, rounded to a sensible step (e.g. Rp1.000 or Rp10.000). The grid filters live while a handle is dragged, and the range is saved to the URL as `?min_price` / `?max_price` on release, so filtered views can be shared and survive a refresh (the params are left out at the full range). Handles can't cross each other, work with mouse, touch, and keyboard (arrows, Page Up/Down, Home/End), and are announced to screen readers as "Minimum price" / "Maximum price" with Rupiah values.
+- A **Clear filters** button resets search text, category, and price range in one click and returns to page 1. It is disabled when no filter is active.
 - Product detail pages (`/products/[id]`) showing name, price, stock, and description, with a dynamic page title per product. Products with more than one image get an image gallery: a large active image with a Prev button, clickable thumbnails, and a Next button below it to switch between images (the control appears only when there are 2+ images).
 - Categories listing that links into the filtered products view.
 - Floating pill navigation with active-route highlighting that adapts to the signed-in role.
@@ -39,7 +41,7 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 - Cart persisted to `localStorage`, surviving refreshes and synced across tabs; a slide-out drawer gives a quick view.
 - `/cart` page with an items table, per-row quantity controls and remove buttons, a running total, an empty state, and a "Proceed to checkout" button that is disabled when the cart is empty.
 - `/checkout` review page whose single **Pay** action creates the order (`POST /orders`), clears the cart, creates a Midtrans payment (`POST /payments`), and redirects to the Midtrans Snap payment page.
-- `/orders` lists the customer's own orders with status badges; `/orders/[id]` shows line items, quantities, totals, and status.
+- `/orders` lists the customer's own orders with status badges; `/orders/[id]` shows line items, quantities, totals, and status, followed by a **Delivery details** section with the customer's name, email, phone, and address as captured on the order. Missing values (e.g. on orders placed before these fields existed) show "—".
 - A pending order can be cancelled (`PUT /orders/[id]` → `cancelled`) or paid for (retrying `POST /payments`) from its detail page. After returning from Midtrans, the order detail page reflects the updated status with a success toast.
 
 ### Admin dashboard (admins)
@@ -47,6 +49,9 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 - Product image management within the create and edit forms: add images by pasting a URL or uploading file(s), and (when editing) replace or delete individual images. Uploaded image files are validated client-side to be under 5 MB. When editing, add/replace/delete apply immediately via the image endpoints; when creating, images are collected locally and uploaded right after the product is created (and discarded if the form is closed before saving).
 - Category CRUD at `/dashboard/categories`: create (with name validation) and edit, delete with a visible error when products are still attached.
 - Read-only order overview at `/dashboard/orders` across all customers. Admins cannot edit order contents; they can advance an order's status along the allowed forward-only transitions (`PUT /orders/[id]`) and delete only cancelled orders (`DELETE /orders/[id]`).
+  - The Customer column shows the customer's name and email (falling back to `User #id`).
+  - Clicking an order's `#id` expands it to show an items table (product name, unit price, quantity, subtotal) with the order total, plus the same **Delivery details** section customers see. Product names are fetched on first expand and cached.
+  - Orders are paginated (8 per page, newest first) with the shared `Pagination` component. Deleting an order refetches the current page so it backfills, and deleting the last order on the last page steps back a page.
 
 ### Cross-cutting
 - Toast notifications (react-hot-toast) on success and error for every CRUD, cart, auth, and checkout action.
@@ -85,9 +90,11 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 │   │   ├── QuantityStepper.tsx    # Increment / decrement control
 │   │   ├── AddToCartButton.tsx    # Stepper + add-to-cart action (customers)
 │   │   ├── SearchBar.tsx          # Controlled search input
+│   │   ├── PriceRangeSlider.tsx   # Dual-handle price range slider (native range inputs, no library)
 │   │   ├── Pagination.tsx         # Reusable Prev / numbered pages / Next navigator
 │   │   ├── CartDrawer.tsx         # Slide-out cart summary
 │   │   ├── OrderStatusBadge.tsx   # Coloured order-status pill
+│   │   ├── DeliveryDetails.tsx    # Order delivery details (name, email, phone, address)
 │   │   ├── ProtectedRoute.tsx     # Client-side auth/role route guard
 │   │   └── forms/                 # Admin dashboard forms
 │   │       ├── CreateProductForm.tsx
@@ -98,7 +105,7 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 │   ├── products/                  # Products route + nested layout
 │   │   ├── layout.tsx             # Nested layout for the products section
 │   │   ├── page.tsx               # Products listing (Server Component data fetch)
-│   │   ├── ProductsBrowser.tsx    # Client-side search / filter UI
+│   │   ├── ProductsBrowser.tsx    # Client-side search / category / price filters + Clear filters
 │   │   ├── loading.tsx            # Loading skeleton
 │   │   ├── error.tsx              # Error fallback
 │   │   └── [id]/                  # Dynamic product detail route
@@ -115,12 +122,12 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 │   ├── cart/                      # Cart page (protected, customer)
 │   ├── checkout/                  # Checkout + Pay flow (protected, customer)
 │   ├── orders/                    # Order history list + detail (protected, customer)
-│   │   └── [id]/                  # Order detail, cancel, pay
+│   │   └── [id]/                  # Order detail + delivery details, cancel, pay
 │   └── dashboard/                 # Admin dashboard (protected, admin)
 │       ├── layout.tsx             # Admin guard + dashboard sub-navigation
 │       ├── page.tsx               # Product CRUD
 │       ├── categories/            # Category CRUD
-│       └── orders/                # Read-only order overview + status updates
+│       └── orders/                # Paginated order overview, expandable details, status updates
 ├── lib/                           # Shared utilities
 │   ├── api/                       # Flask API client, one module per resource
 │   │   ├── client.ts              # Shared fetch: base URL, credentialed cookies, CSRF header, 401→refresh, error normalization, JSON or multipart (FormData) bodies
