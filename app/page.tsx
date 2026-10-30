@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getProducts } from "@/lib/api";
 import ProductGrid from "./components/ProductGrid";
+import HeroCarousel from "./components/HeroCarousel";
 
 export const metadata = {
   title: "KINETIC — Modern Tech Store",
@@ -44,33 +45,8 @@ function FeaturedSkeleton() {
 export default function Home() {
   return (
     <div className="flex flex-col gap-12">
-      {/* Hero banner */}
-      <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-[var(--color-brand)] to-indigo-700 px-6 py-14 text-white sm:px-12 sm:py-20">
-        <span className="inline-block rounded-full bg-[var(--color-accent)] px-3 py-1 text-xs font-bold text-slate-900">
-          New drop · Tech season 2026
-        </span>
-        <h1 className="mt-4 max-w-2xl text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">
-          Precision gear for the way you work, play, and move.
-        </h1>
-        <p className="mt-4 max-w-xl text-base text-blue-100 sm:text-lg">
-          KINETIC brings together audio, computing, wearables, and smart
-          living — with lightning-fast discovery and crystal-clear stock info.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/products"
-            className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-[var(--color-brand)] transition-transform hover:scale-[1.02]"
-          >
-            Shop all products
-          </Link>
-          <Link
-            href="/categories"
-            className="rounded-full border border-white/40 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
-          >
-            Browse categories
-          </Link>
-        </div>
-      </section>
+      {/* Hero promo carousel */}
+      <HeroCarousel />
 
       {/* Value pillars */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
