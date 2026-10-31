@@ -15,8 +15,9 @@
 //     echo it back in the `X-CSRF-TOKEN` header. `/auth/refresh` instead needs
 //     the `csrf_refresh_token`.
 //
-// The base URL is read from NEXT_PUBLIC_API_BASE_URL so it is never hardcoded
-// in components.
+// In the browser every request goes through the same-origin `/api` proxy
+// (see next.config.ts); on the server the absolute backend URL is read from
+// API_BASE_URL. Neither is hardcoded in components.
 
 /** Error thrown for any non-OK API response. Carries the HTTP status so the
  *  UI can branch (e.g. 401 -> login, 409 -> deletion guard message). */
@@ -32,11 +33,26 @@ export class ApiError extends Error {
   }
 }
 
+/** Same-origin prefix proxied to the Flask API by the rewrite in next.config.ts. */
+const BROWSER_API_PREFIX = "/api";
+
+/**
+ * Base URL for API requests.
+ *
+ * - Browser: the same-origin `/api` proxy. Auth/CSRF cookies are then
+ *   first-party to this app, so `document.cookie` can read the CSRF token and
+ *   browsers that block third-party cookies (Safari) still send the JWT.
+ * - Server (Server Components): the absolute backend URL. Server-side `fetch`
+ *   can't resolve a relative URL, and those calls are public, cookie-less GETs.
+ */
 export function getBaseUrl(): string {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (typeof window !== "undefined") {
+    return BROWSER_API_PREFIX;
+  }
+  const base = process.env.API_BASE_URL;
   if (!base) {
     throw new Error(
-      "NEXT_PUBLIC_API_BASE_URL is not set. Add it to .env.local (see .env.example)."
+      "API_BASE_URL is not set. Add it to .env (see .env.example)."
     );
   }
   return base.replace(/\/$/, "");
@@ -183,6 +199,12 @@ async function rawRequest(
     );
     if (csrf) {
       headers[CSRF_HEADER] = csrf;
+    } else if (options.auth || options.useRefreshCsrf) {
+      // A protected write without its CSRF token will be rejected with 401.
+      // Usually means the backend's cookies aren't visible to this origin.
+      console.warn(
+        `[api] No CSRF cookie found for ${method} ${path}; the request will likely be rejected.`
+      );
     }
   }
 

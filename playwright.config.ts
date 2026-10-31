@@ -9,7 +9,8 @@ import path from 'node:path';
  * dependency. Existing process.env values are never overwritten.
  *
  * Relevant vars (see .env.example / test-plan.md):
- *   NEXT_PUBLIC_API_BASE_URL  - the real Flask API base URL
+ *   API_BASE_URL              - the real Flask API base URL (used directly
+ *                               for test setup; the app proxies it via /api)
  *   PW_ADMIN_EMAIL / PW_ADMIN_PASSWORD - a known admin account
  *   PW_PAYMENTS_MODE          - "stub" (default) or "real"
  *   PW_BASE_URL               - override the app URL (default http://localhost:3000)
@@ -50,7 +51,7 @@ const BASE_URL = process.env.PW_BASE_URL ?? 'https://localhost:3000';
 /**
  * See https://playwright.dev/docs/test-configuration.
  *
- * These E2E tests run against the REAL Flask backend (NEXT_PUBLIC_API_BASE_URL)
+ * These E2E tests run against the REAL Flask backend (API_BASE_URL)
  * plus the Next.js dev server on :3000. The only stubbed boundary is the
  * Midtrans redirect (see tests/helpers/payments.ts). Prerequisites and env vars
  * are documented in test-plan.md and .env.example.
@@ -99,7 +100,7 @@ export default defineConfig({
   ],
 
   /* Start the Next.js dev server before the tests. The Flask API must be
-   * started separately and reachable at NEXT_PUBLIC_API_BASE_URL. */
+   * started separately and reachable at API_BASE_URL. */
   webServer: {
     command: 'npm run dev',
     url: BASE_URL,

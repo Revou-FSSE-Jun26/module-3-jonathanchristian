@@ -68,7 +68,7 @@ Authentication is JWT-based using **HttpOnly cookies**. Login does not return to
 - **next/navigation** — `useRouter`, `usePathname`, `useSearchParams` for navigation, active links, and query-param-driven search; `router.replace()` for non-returnable auth redirects.
 - **HttpOnly cookies + CSRF** — the JWT access/refresh tokens live in HttpOnly cookies set by the API; requests are sent with credentials and echo a CSRF token in `X-CSRF-TOKEN`. See [Authentication & cookies](#authentication--cookies).
 - **localStorage** — a UI-only session snapshot (user name + role) and cart persistence. No tokens are stored here.
-- **`NEXT_PUBLIC_API_BASE_URL`** — the Flask API base URL (HTTPS), read from the environment and never hardcoded.
+- **`API_BASE_URL`** — the Flask API base URL (HTTPS, server-only), read from the environment and never hardcoded. The browser reaches it through the same-origin `/api/*` rewrite.
 - **Playwright** — end-to-end test suite covering the auth, browsing, and admin journeys (see [Testing](#testing)).
 
 ## Project Structure
@@ -183,10 +183,10 @@ cp .env.example .env.local
 Then edit `.env.local`:
 
 ```
-NEXT_PUBLIC_API_BASE_URL=https://localhost:5000
+API_BASE_URL=https://localhost:5000
 ```
 
-Use the base URL of your API with no trailing slash. It **must be `https://`** — a `Secure` cookie is never sent over plain HTTP. Use `localhost` (not `127.0.0.1`) so the app and API share a hostname for the dev certificates. The API base URL is never hardcoded in the app — it is always read from `NEXT_PUBLIC_API_BASE_URL`. Environment files with real values are git-ignored.
+Use the base URL of your API with no trailing slash. `API_BASE_URL` is server-only: the browser calls the app's own `/api/*`, which `next.config.ts` rewrites to this URL, and Server Components fetch it directly. It is read at build time by `next.config.ts`, so restart the dev server (or redeploy) after changing it. The API base URL is never hardcoded in the app. Environment files with real values are git-ignored.
 
 ### 3. Run the development server
 
@@ -235,32 +235,37 @@ Remove-Item .\certificates\localhost.pem, .\certificates\localhost-key.pem
 
 ## Authentication & cookies
 
-Auth is JWT-based over **HttpOnly cookies**, and the frontend and backend run on
-different origins (cross-site), so a few conditions must hold for the browser to
-store and resend the cookies. This is the same model in local development and in
-production.
+Auth is JWT-based over **HttpOnly cookies** with double-submit CSRF protection.
+The frontend and backend are deployed on different hosts, but the browser never
+talks to the backend directly: every client request goes to the app's own
+same-origin `/api/*` path, which `next.config.ts` rewrites to `API_BASE_URL`.
 
-The frontend already does its part: every request is sent with
-`credentials: "include"`, and state-changing requests echo the readable CSRF
-cookie back in an `X-CSRF-TOKEN` header. For it to work end-to-end, the
-**backend** must, in both environments:
+Because of that proxy, the backend's cookies are stored as **first-party**
+cookies of the app's origin:
 
-- **Serve over HTTPS.** Locally, both the app (`https://localhost:3000`, via
-  `npm run dev`) and the Flask API (`https://localhost:5000`) must be HTTPS. A
-  `Secure` cookie is never sent over plain `http://`.
-- **Set the JWT/CSRF cookies with `SameSite=None; Secure`** — the same flags in
-  local and production, since the request is cross-site either way.
-- **Send CORS headers for credentialed requests:**
-  - `Access-Control-Allow-Credentials: true`
-  - `Access-Control-Allow-Origin:` the app's **exact** origin, not `*`
-    (`https://localhost:3000` locally; the deployed app URL in production)
-  - `Access-Control-Allow-Headers: Content-Type, X-CSRF-TOKEN`
-  - and answer the `OPTIONS` preflight (e.g. via Flask-CORS with
-    `supports_credentials=True`).
+- `lib/api/client.ts` can read the readable `csrf_access_token` /
+  `csrf_refresh_token` cookies from `document.cookie` and echo them in the
+  `X-CSRF-TOKEN` header on state-changing requests. (With direct cross-site
+  calls this was impossible: a page can't read another host's cookies, so every
+  protected `POST`/`PUT`/`DELETE` was rejected with `401`.)
+- Browsers that block third-party cookies by default (Safari) still store and
+  send the auth cookies.
 
-In production (frontend and backend on separate hosts) no code change is needed:
-set `NEXT_PUBLIC_API_BASE_URL` to the backend's HTTPS URL and point the backend's
-CORS allowed origin at the deployed frontend URL.
+Requirements:
+
+- **HTTPS.** The cookies are `Secure`, so the app must be served over HTTPS.
+  Locally `npm run dev` serves `https://localhost:3000`.
+- **No explicit cookie `Domain` on the backend** (leave `JWT_COOKIE_DOMAIN`
+  unset). Cookies arriving through the proxy are scoped to the app's host; a
+  `Domain` naming the backend host would make the browser reject them.
+  `SameSite=None` or `Lax` both work, since requests are same-origin.
+- **`API_BASE_URL` set at build time** (on Vercel: set it in the project's
+  environment variables, then redeploy). The trailing-slash redirect is
+  disabled (`skipTrailingSlashRedirect`) so backend paths like `/orders/` pass
+  through unchanged.
+
+CORS is no longer involved for browser requests, since they are same-origin;
+the backend only sees server-to-server requests from Next.js.
 
 ## Testing
 
@@ -294,7 +299,7 @@ boundary is controlled by `PW_PAYMENTS_MODE`:
 
 ### Prerequisites
 
-- The Flask API running over **HTTPS** and reachable at `NEXT_PUBLIC_API_BASE_URL`,
+- The Flask API running over **HTTPS** and reachable at `API_BASE_URL`,
   with the cookie/CORS configuration from [Authentication & cookies](#authentication--cookies).
 - A dedicated test database (tests create data with unique names and rely on the
   API's soft-deletion, so no cleanup step is required).

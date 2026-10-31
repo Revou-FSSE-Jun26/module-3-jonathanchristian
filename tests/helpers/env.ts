@@ -13,7 +13,7 @@ function required(name: string): string {
 
 /** Base URL of the real Flask API, trailing slash stripped. */
 export function apiBaseUrl(): string {
-  return required('NEXT_PUBLIC_API_BASE_URL').replace(/\/$/, '');
+  return required('API_BASE_URL').replace(/\/$/, '');
 }
 
 /** Admin credentials for the Playwright test database. */
