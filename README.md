@@ -374,6 +374,13 @@ https://kinetic-fe.vercel.app/
 > **Live Demo Status:** The production deployment on [Vercel](https://kinetic-fe.vercel.app/) reflects the stable release at commit [`b189395`](https://github.com/jonathanch12/kinetic-fe/commit/b189395b981056874c6f1e4c30fcf91df55e9258).  
 > Recent commits on the `main` branch contain unreleased updates and work-in-progress features that are not yet deployed.
 
+## Seeded Accounts for Demo
+
+| User | Email | Password | Role |
+|----------|------------------|-------------|------------|
+| Admin | admin@example.com | admin123 | `admin` |
+| John May | user@example.com | password123 | `customer` |
+
 ---
 
 Disclaimer: KINETIC is a portfolio project created for educational and demonstration purposes only. It is not an actual commercial store, and no items are available for real purchase. All trademarks, logos, and product imagery belong to their respective owners.
