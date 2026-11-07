@@ -378,7 +378,6 @@ https://kinetic-fe.vercel.app/
 
 | User | Email | Password | Role |
 |----------|------------------|-------------|------------|
-| Admin | admin@example.com | admin123 | `admin` |
 | John May | user@example.com | password123 | `customer` |
 
 ---
